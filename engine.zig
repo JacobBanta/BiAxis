@@ -7,11 +7,6 @@ pub fn getRegistry(allocator: std.Allocator, files: []const []const u8) []const 
     }
     return buf.items;
 } //}}}
-pub fn getZon(b: *std.Build, obj: anytype) []const u8 { //{{{
-    var buf = std.ArrayList(u8).init(b.allocator);
-    std.zon.stringify.serialize(obj, .{}, buf.writer()) catch unreachable;
-    return buf.items;
-} //}}}
 
 pub fn Param(T: type, name: [:0]const u8, value: T) type { //{{{
     return @Type(.{ .Struct = .{
@@ -51,3 +46,15 @@ pub const Script = union(enum) {
         data: []const u8, //ZON data
     },
 }; //}}}
+pub fn getScript(path: []const u8, data: anytype, allocator: std.mem.Allocator) Script { //{{{
+    var arraylist = std.ArrayList(u8).init(allocator);
+    switch (@TypeOf(data)) {
+        .type => {
+            std.zon.stringify.serialize(data{}, .{}, arraylist.writer()) catch unreachable;
+        },
+        else => {
+            std.zon.stringify.serialize(data, .{}, arraylist.writer()) catch unreachable;
+        },
+    }
+    return .{ .script = .{ .path = path, .data = arraylist.items } };
+} //}}}
