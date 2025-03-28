@@ -47,9 +47,10 @@ pub const Script = union(enum) {
     },
 }; //}}}
 pub fn getScript(path: []const u8, data: anytype, allocator: std.mem.Allocator) Script { //{{{
+    //@compileLog(@typeInfo(data));
     var arraylist = std.ArrayList(u8).init(allocator);
     switch (@TypeOf(data)) {
-        .type => {
+        type => {
             std.zon.stringify.serialize(data{}, .{}, arraylist.writer()) catch unreachable;
         },
         else => {
@@ -58,3 +59,38 @@ pub fn getScript(path: []const u8, data: anytype, allocator: std.mem.Allocator) 
     }
     return .{ .script = .{ .path = path, .data = arraylist.items } };
 } //}}}
+pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 {
+    var buf = std.ArrayList(u8).init(allocator);
+    buf.writer().print(
+        \\pub const std = @import("std"); const This = @This();
+    , .{}) catch unreachable;
+    for (0..scene.entities.len) |i| {
+        buf.writer().print("entity{d}: struct{{", .{i}) catch unreachable;
+        for (0..scene.entities[i].scripts.len) |x| {
+            buf.writer().print(
+                \\script{d}: registry.@"{s}" = @import("entity{d}.script{d}.zon"),
+            , .{ x, scene.entities[i].scripts[x].script.path, i, x }) catch unreachable;
+        }
+        buf.writer().print(
+            \\pub fn getData(self: @This(), T: type, comptime fieldName: []const u8) !T {{
+        , .{}) catch unreachable;
+        for (0..scene.entities[i].scripts.len) |x| {
+            buf.writer().print(
+                \\if (@hasField(@TypeOf(self.script{d}), fieldName)) return @field(self.script{d}, fieldName);
+            , .{ x, x }) catch unreachable;
+        }
+        buf.writer().print(
+            \\return error.FieldNotFound;}}pub fn setData(self: *@This(), T: type, value: T, comptime fieldName: []const u8) void {{
+        , .{}) catch unreachable;
+        for (0..scene.entities[i].scripts.len) |x| {
+            buf.writer().print(
+                \\if (@hasField(@TypeOf(self.script{d}), fieldName)) @field(self.script{d}, fieldName) = value;
+            , .{ x, x }) catch unreachable;
+        }
+        buf.writer().print(
+            \\}} pub fn getScene(self: *@This()) *This {{ return @fieldParentPtr("entity{d}", self); }} }} = .{{}},
+        , .{i}) catch unreachable;
+    }
+    //std.debug.print("{s}", .{buf.items});
+    return buf.items;
+}
