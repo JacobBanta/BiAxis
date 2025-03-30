@@ -126,6 +126,10 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 {
                 buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(f64, anytype) void)registry.@\"{s}\".{s}(deltaTime, self.entity{d});", .{ s.path, func, s.path, func, entity }) catch unreachable;
                 buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(registry.@\"{s}\", f64, anytype) void)registry.@\"{s}\".{s}(self.entity{d}.script{d}, deltaTime, self.entity{d});", .{ s.path, func, s.path, s.path, func, entity, script, entity }) catch unreachable;
                 buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(*registry.@\"{s}\", f64, anytype) void)registry.@\"{s}\".{s}(&self.entity{d}.script{d}, deltaTime, self.entity{d});", .{ s.path, func, s.path, s.path, func, entity, script, entity }) catch unreachable;
+
+                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(anytype, f64) void)registry.@\"{s}\".{s}( self.entity{d}, deltaTime);", .{ s.path, func, s.path, func, entity }) catch unreachable;
+                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(registry.@\"{s}\", anytype, f64) void)registry.@\"{s}\".{s}(self.entity{d}.script{d}, self.entity{d}, deltaTime);", .{ s.path, func, s.path, s.path, func, entity, script, entity }) catch unreachable;
+                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(*registry.@\"{s}\", anytype, f64) void)registry.@\"{s}\".{s}(&self.entity{d}.script{d}, self.entity{d}, deltaTime);", .{ s.path, func, s.path, s.path, func, entity, script, entity }) catch unreachable;
             }
         }
         buf.writer().print("}}", .{}) catch unreachable;
