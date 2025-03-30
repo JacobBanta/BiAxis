@@ -62,7 +62,7 @@ pub fn getScript(path: []const u8, data: anytype, allocator: std.mem.Allocator) 
 pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 {
     var buf = std.ArrayList(u8).init(allocator);
     buf.writer().print(
-        \\pub const std = @import("std"); const This = @This(); pub const registry = @import("registry"); pub var FPS: f64 = 60; var lastFrame: f64 = 0; var deltaTime: f64 = 0;
+        \\pub const std = @import("std"); const This = @This(); pub const registry = @import("registry"); pub var FPS: f64 = 60; var lastFrame: f64 = 0; var deltaTime: f64 = 0; var fixedUpdateTime = 0;
     , .{}) catch unreachable;
     for (0..scene.entities.len) |i| { //{{{
         buf.writer().print("entity{d}: struct{{", .{i}) catch unreachable;
@@ -99,12 +99,21 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 {
         , .{func}) catch unreachable;
         if (std.mem.eql(u8, func, "update")) {
             buf.writer().print(
-                \\deltaTime = (std.time.milliTimestamp() - lastFrame) / 1000; lastFrame = std.time.milliTimestamp();
+                \\deltaTime = (std.time.milliTimestamp() - lastFrame) / 1000; lastFrame = std.time.milliTimestamp(); while(fixedUpdateTime < std.time.milliTimestamp() + (1000 / FPS)){{fixedUpdateTime += 1000 / FPS; self.fixedUpdate();}}
             , .{}) catch unreachable;
         }
         if (std.mem.eql(u8, func, "init")) {
             buf.writer().print(
-                \\lastFrame = std.time.milliTimestamp();
+                \\lastFrame = std.time.milliTimestamp(); fixedUpdateTime = std.time.milliTimestamp();
+            , .{}) catch unreachable;
+        }
+        if (std.mem.eql(u8, func, "fixedUpdate")) {
+            buf.writer().print(
+                \\const time = 1 / FPS;
+            , .{}) catch unreachable;
+        } else {
+            buf.writer().print(
+                \\const time = deltaTime;
             , .{}) catch unreachable;
         }
         for (0..scene.entities.len) |entity| {
@@ -115,21 +124,21 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 {
                 buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(registry.@\"{s}\") void)registry.@\"{s}\".{s}(self.entity{d}.script{d});", .{ s.path, func, s.path, s.path, func, entity, script }) catch unreachable;
                 buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(*registry.@\"{s}\") void)registry.@\"{s}\".{s}(&self.entity{d}.script{d});", .{ s.path, func, s.path, s.path, func, entity, script }) catch unreachable;
 
-                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(f64) void)registry.@\"{s}\".{s}(deltaTime);", .{ s.path, func, s.path, func }) catch unreachable;
-                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(registry.@\"{s}\", f64) void)registry.@\"{s}\".{s}(self.entity{d}.script{d}, deltaTime);", .{ s.path, func, s.path, s.path, func, entity, script }) catch unreachable;
-                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(*registry.@\"{s}\", f64) void)registry.@\"{s}\".{s}(&self.entity{d}.script{d}, deltaTime);", .{ s.path, func, s.path, s.path, func, entity, script }) catch unreachable;
+                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(f64) void)registry.@\"{s}\".{s}(time);", .{ s.path, func, s.path, func }) catch unreachable;
+                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(registry.@\"{s}\", f64) void)registry.@\"{s}\".{s}(self.entity{d}.script{d}, time);", .{ s.path, func, s.path, s.path, func, entity, script }) catch unreachable;
+                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(*registry.@\"{s}\", f64) void)registry.@\"{s}\".{s}(&self.entity{d}.script{d}, time);", .{ s.path, func, s.path, s.path, func, entity, script }) catch unreachable;
 
                 buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(anytype) void)registry.@\"{s}\".{s}(self.entity{d});", .{ s.path, func, s.path, func, entity }) catch unreachable;
                 buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(registry.@\"{s}\", anytype) void)registry.@\"{s}\".{s}(self.entity{d}.script{d}, self.entity{d});", .{ s.path, func, s.path, s.path, func, entity, script, entity }) catch unreachable;
                 buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(*registry.@\"{s}\", anytype) void)registry.@\"{s}\".{s}(&self.entity{d}.script{d}, self.entity{d});", .{ s.path, func, s.path, s.path, func, entity, script, entity }) catch unreachable;
 
-                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(f64, anytype) void)registry.@\"{s}\".{s}(deltaTime, self.entity{d});", .{ s.path, func, s.path, func, entity }) catch unreachable;
-                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(registry.@\"{s}\", f64, anytype) void)registry.@\"{s}\".{s}(self.entity{d}.script{d}, deltaTime, self.entity{d});", .{ s.path, func, s.path, s.path, func, entity, script, entity }) catch unreachable;
-                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(*registry.@\"{s}\", f64, anytype) void)registry.@\"{s}\".{s}(&self.entity{d}.script{d}, deltaTime, self.entity{d});", .{ s.path, func, s.path, s.path, func, entity, script, entity }) catch unreachable;
+                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(f64, anytype) void)registry.@\"{s}\".{s}(time, self.entity{d});", .{ s.path, func, s.path, func, entity }) catch unreachable;
+                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(registry.@\"{s}\", f64, anytype) void)registry.@\"{s}\".{s}(self.entity{d}.script{d}, time, self.entity{d});", .{ s.path, func, s.path, s.path, func, entity, script, entity }) catch unreachable;
+                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(*registry.@\"{s}\", f64, anytype) void)registry.@\"{s}\".{s}(&self.entity{d}.script{d}, time, self.entity{d});", .{ s.path, func, s.path, s.path, func, entity, script, entity }) catch unreachable;
 
-                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(anytype, f64) void)registry.@\"{s}\".{s}( self.entity{d}, deltaTime);", .{ s.path, func, s.path, func, entity }) catch unreachable;
-                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(registry.@\"{s}\", anytype, f64) void)registry.@\"{s}\".{s}(self.entity{d}.script{d}, self.entity{d}, deltaTime);", .{ s.path, func, s.path, s.path, func, entity, script, entity }) catch unreachable;
-                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(*registry.@\"{s}\", anytype, f64) void)registry.@\"{s}\".{s}(&self.entity{d}.script{d}, self.entity{d}, deltaTime);", .{ s.path, func, s.path, s.path, func, entity, script, entity }) catch unreachable;
+                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(anytype, f64) void)registry.@\"{s}\".{s}( self.entity{d}, time);", .{ s.path, func, s.path, func, entity }) catch unreachable;
+                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(registry.@\"{s}\", anytype, f64) void)registry.@\"{s}\".{s}(self.entity{d}.script{d}, self.entity{d}, time);", .{ s.path, func, s.path, s.path, func, entity, script, entity }) catch unreachable;
+                buf.writer().print("if(@TypeOf(registry.@\"{s}\".{s}) == fn(*registry.@\"{s}\", anytype, f64) void)registry.@\"{s}\".{s}(&self.entity{d}.script{d}, self.entity{d}, time);", .{ s.path, func, s.path, s.path, func, entity, script, entity }) catch unreachable;
             }
         }
         buf.writer().print("}}", .{}) catch unreachable;
