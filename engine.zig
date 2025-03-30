@@ -62,7 +62,7 @@ pub fn getScript(path: []const u8, data: anytype, allocator: std.mem.Allocator) 
 pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 {
     var buf = std.ArrayList(u8).init(allocator);
     buf.writer().print(
-        \\pub const std = @import("std"); const This = @This(); pub const registry = @import("registry");
+        \\pub const std = @import("std"); const This = @This(); pub const registry = @import("registry"); pub var FPS: f64 = 60; var lastFrame: f64 = 0; var deltaTime: f64 = 0;
     , .{}) catch unreachable;
     for (0..scene.entities.len) |i| { //{{{
         buf.writer().print("entity{d}: struct{{", .{i}) catch unreachable;
@@ -97,7 +97,16 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 {
         buf.writer().print(
             \\pub fn {s}(self: *This) void {{
         , .{func}) catch unreachable;
-        buf.writer().print("const deltaTime: f64 = 0;", .{}) catch unreachable;
+        if (std.mem.eql(u8, func, "update")) {
+            buf.writer().print(
+                \\deltaTime = (std.time.milliTimestamp() - lastFrame) / 1000; lastFrame = std.time.milliTimestamp();
+            , .{}) catch unreachable;
+        }
+        if (std.mem.eql(u8, func, "init")) {
+            buf.writer().print(
+                \\lastFrame = std.time.milliTimestamp();
+            , .{}) catch unreachable;
+        }
         for (0..scene.entities.len) |entity| {
             for (0..scene.entities[entity].scripts.len) |script| {
                 const s = scene.entities[entity].scripts[script].script;
