@@ -1,5 +1,5 @@
 const std = @import("std");
-const engine = @import("engine.zig");
+pub const engine = @import("engine.zig");
 
 pub fn build(b: *std.Build) void {
     const s = engine.Scene{
