@@ -191,6 +191,7 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
                 }
             }
             buf.writer().print(" if(script == registry.@\"{s}\")[{d}]script else", .{ scene.entities[entity].scripts[script].script.path, counter }) catch unreachable;
+            buf.writer().print(" if(script == *registry.@\"{s}\")[{d}]script else", .{ scene.entities[entity].scripts[script].script.path, counter }) catch unreachable;
         }
     }
     buf.writer().print("[0]script {{", .{}) catch unreachable;
@@ -228,6 +229,20 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
                         scene.entities[entity2].scripts[script2].script.path,
                     )) {
                         buf.writer().print("self.entity{d}.script{d}, ", .{ entity2, script2 }) catch unreachable;
+                    }
+                }
+            }
+            buf.writer().print("}};", .{}) catch unreachable;
+
+            buf.writer().print("if(script == *registry.@\"{s}\") return [_]script{{", .{scene.entities[entity].scripts[script].script.path}) catch unreachable;
+            for (0..scene.entities.len) |entity2| {
+                for (0..scene.entities[entity2].scripts.len) |script2| {
+                    if (std.mem.eql(
+                        u8,
+                        scene.entities[entity].scripts[script].script.path,
+                        scene.entities[entity2].scripts[script2].script.path,
+                    )) {
+                        buf.writer().print("&self.entity{d}.script{d}, ", .{ entity2, script2 }) catch unreachable;
                     }
                 }
             }
