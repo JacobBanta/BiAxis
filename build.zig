@@ -18,5 +18,6 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const opts = .{ .target = target, .optimize = optimize };
-    _ = engine.addModule(b, s, &[_]std.Build.Module.Import{}, "engine", opts);
+    const e = engine.addModule(b, s, &[_]std.Build.Module.Import{}, "engine", opts);
+    b.getInstallStep().dependOn(e.step);
 }

@@ -149,6 +149,90 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
         }
         buf.writer().print("}}", .{}) catch unreachable;
     } //}}}
+    buf.writer().print("pub fn getScripts(self: *@This(), script: type)", .{}) catch unreachable; //{{{
+    for (0..scene.entities.len) |entity| {
+        outer: for (0..scene.entities[entity].scripts.len) |script| {
+            for (0..entity + 1) |entity2| {
+                if (entity2 == entity) {
+                    for (0..script) |script2| {
+                        if (std.mem.eql(
+                            u8,
+                            scene.entities[entity].scripts[script].script.path,
+                            scene.entities[entity2].scripts[script2].script.path,
+                        )) {
+                            continue :outer;
+                        }
+                    }
+                } else {
+                    for (0..scene.entities[entity2].scripts.len) |script2| {
+                        if (std.mem.eql(
+                            u8,
+                            scene.entities[entity].scripts[script].script.path,
+                            scene.entities[entity2].scripts[script2].script.path,
+                        )) {
+                            continue :outer;
+                        }
+                    }
+                }
+            }
+            var counter: usize = 0;
+            for (0..scene.entities.len) |entity2| {
+                for (0..scene.entities[entity2].scripts.len) |script2| {
+                    if (std.mem.eql(
+                        u8,
+                        scene.entities[entity].scripts[script].script.path,
+                        scene.entities[entity2].scripts[script2].script.path,
+                    )) {
+                        counter += 1;
+                    }
+                }
+            }
+            buf.writer().print(" if(script == registry.@\"{s}\")[{d}]script else", .{ scene.entities[entity].scripts[script].script.path, counter }) catch unreachable;
+        }
+    }
+    buf.writer().print("[0]script {{", .{}) catch unreachable;
+    for (0..scene.entities.len) |entity| {
+        outer: for (0..scene.entities[entity].scripts.len) |script| {
+            for (0..entity + 1) |entity2| {
+                if (entity2 == entity) {
+                    for (0..script) |script2| {
+                        if (std.mem.eql(
+                            u8,
+                            scene.entities[entity].scripts[script].script.path,
+                            scene.entities[entity2].scripts[script2].script.path,
+                        )) {
+                            continue :outer;
+                        }
+                    }
+                } else {
+                    for (0..scene.entities[entity2].scripts.len) |script2| {
+                        if (std.mem.eql(
+                            u8,
+                            scene.entities[entity].scripts[script].script.path,
+                            scene.entities[entity2].scripts[script2].script.path,
+                        )) {
+                            continue :outer;
+                        }
+                    }
+                }
+            }
+            buf.writer().print("if(script == registry.@\"{s}\") return [_]script{{", .{scene.entities[entity].scripts[script].script.path}) catch unreachable;
+            for (0..scene.entities.len) |entity2| {
+                for (0..scene.entities[entity2].scripts.len) |script2| {
+                    if (std.mem.eql(
+                        u8,
+                        scene.entities[entity].scripts[script].script.path,
+                        scene.entities[entity2].scripts[script2].script.path,
+                    )) {
+                        buf.writer().print("self.entity{d}.script{d}, ", .{ entity2, script2 }) catch unreachable;
+                    }
+                }
+            }
+            buf.writer().print("}};", .{}) catch unreachable;
+        }
+    }
+
+    buf.writer().print("return [0]script{{}};}}", .{}) catch unreachable; //}}}
     //std.debug.print("{s}", .{buf.items});
     return buf.items;
 } //}}}
@@ -164,6 +248,14 @@ pub fn addModule(b: *std.Build, scene: Scene, externalImports: []const std.Build
     var registry = b.addWriteFile(b.pathFromRoot("registry.zig"), getRegistry(b.allocator, files.items));
     imports.append(.{ .module = b.createModule(.{ .target = opts.target, .optimize = opts.optimize, .root_source_file = b.path("registry.zig") }), .name = "registry" }) catch unreachable;
     const sceneWriteFile = b.addWriteFile(std.mem.join(b.allocator, std.fs.path.sep_str, ([_][]const u8{ b.cache_root.path.?, name })[0..]) catch unreachable, makeScene(b.allocator, scene));
+    for (0..scene.entities.len) |entity| {
+        for (0..scene.entities[entity].scripts.len) |script| {
+            var file = std.ArrayList(u8).init(b.allocator);
+            file.writer().print("entity{d}.script{d}.zon", .{ entity, script }) catch unreachable;
+            const zonWriteFile = b.addWriteFile(std.mem.join(b.allocator, std.fs.path.sep_str, ([_][]const u8{ b.cache_root.path.?, file.items })[0..]) catch unreachable, scene.entities[entity].scripts[script].script.data);
+            sceneWriteFile.step.dependOn(&zonWriteFile.step);
+        }
+    }
     const scenePath = sceneWriteFile.files.items[0].sub_path;
     const mod = b.addModule(name, .{ .root_source_file = std.Build.LazyPath{ .cwd_relative = scenePath }, .imports = imports.items, .optimize = opts.optimize, .target = opts.target });
     sceneWriteFile.step.dependOn(&registry.step);
