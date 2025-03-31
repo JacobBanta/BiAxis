@@ -65,7 +65,7 @@ pub fn getScript(path: []const u8, data: anytype, allocator: std.mem.Allocator) 
     }
     return .{ .script = .{ .path = path, .data = arraylist.items } };
 } //}}}
-pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 {
+pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
     var buf = std.ArrayList(u8).init(allocator);
     buf.writer().print(
         \\pub const std = @import("std"); const This = @This(); pub const registry = @import("registry"); pub var FPS: f64 = 60; var lastFrame: f64 = 0; var deltaTime: f64 = 0; var fixedUpdateTime = 0;
@@ -151,4 +151,22 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 {
     } //}}}
     //std.debug.print("{s}", .{buf.items});
     return buf.items;
+} //}}}
+pub fn addModule(b: *std.Build, scene: Scene, externalImports: []const std.Build.Module.Import, name: []const u8, opts: anytype) Mod { //{{{
+    var files = std.ArrayList([]const u8).init(b.allocator);
+    for (scene.entities) |entity| {
+        for (entity.scripts) |script| {
+            files.append(script.script.path) catch unreachable;
+        }
+    }
+    var imports = std.ArrayList(std.Build.Module.Import).init(b.allocator);
+    imports.appendSlice(externalImports) catch unreachable;
+    var registry = b.addWriteFile(b.pathFromRoot("registry.zig"), getRegistry(b.allocator, files.items));
+    imports.append(.{ .module = b.createModule(.{ .target = opts.target, .optimize = opts.optimize, .root_source_file = b.path("registry.zig") }), .name = "registry" }) catch unreachable;
+    const sceneWriteFile = b.addWriteFile(std.mem.join(b.allocator, std.fs.path.sep_str, ([_][]const u8{ b.cache_root.path.?, name })[0..]) catch unreachable, makeScene(b.allocator, scene));
+    const scenePath = sceneWriteFile.files.items[0].sub_path;
+    const mod = b.addModule(name, .{ .root_source_file = std.Build.LazyPath{ .cwd_relative = scenePath }, .imports = imports.items, .optimize = opts.optimize, .target = opts.target });
+    sceneWriteFile.step.dependOn(&registry.step);
+    return .{ .module = mod, .step = &sceneWriteFile.step };
 }
+const Mod = struct { module: *std.Build.Module, step: *std.Build.Step }; //}}}

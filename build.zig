@@ -2,7 +2,7 @@ const std = @import("std");
 const engine = @import("engine.zig");
 
 pub fn build(b: *std.Build) void {
-    const text = engine.makeScene(b.allocator, .{
+    const s = engine.Scene{
         .entities = &[_]engine.Entity{
             .{ .scripts = &[_]engine.Script{
                 engine.getScript("src/script.zig", engine.ParamList({}), b.allocator),
@@ -14,13 +14,9 @@ pub fn build(b: *std.Build) void {
                 },
             },
         },
-    });
-    {
-        var wf = b.addWriteFile(std.mem.join(b.allocator, std.fs.path.sep_str, ([_][]const u8{ b.cache_root.path.?, "gen" })[0..]) catch unreachable, text);
-        b.getInstallStep().dependOn(&wf.step);
-    }
-    {
-        var wf = b.addWriteFile(b.pathFromRoot("registry.zig"), engine.getRegistry(b.allocator, ([_][]const u8{ "src/script.zig", "src/physics.zig" })[0..]));
-        b.getInstallStep().dependOn(&wf.step);
-    }
+    };
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+    const opts = .{ .target = target, .optimize = optimize };
+    _ = engine.addModule(b, s, &[_]std.Build.Module.Import{}, "engine", opts);
 }
