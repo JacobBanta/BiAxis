@@ -1,6 +1,7 @@
 const rl = @import("raylib");
 const std = @import("std");
 const Inspector = @import("inspector.zig");
+const FileBrowser = @import("fileBrowser.zig");
 rect: rl.Rectangle = rl.Rectangle.init(0, 0, 0, 0),
 objectPtr: ?usize = null,
 type: Type = .none,
@@ -37,15 +38,23 @@ pub fn init(self: *@This(), entity: anytype) void { //{{{
             const inspector: *Inspector = @ptrFromInt(self.objectPtr.?);
             inspector.resizeEvent(@intFromFloat(self.rect.width), @intFromFloat(self.rect.height));
         },
+        .fileBrowser => {
+            self.objectPtr = @intFromPtr(entity.getScene().getScripts(*@import("fileBrowser.zig"))[0]);
+            const fileBrowser: *FileBrowser = @ptrFromInt(self.objectPtr.?);
+            fileBrowser.resizeEvent(@intFromFloat(self.rect.width), @intFromFloat(self.rect.height));
+        },
         else => {},
     }
 } //}}}
 pub fn render(self: @This()) void { //{{{
     switch (self.type) {
         .inspector => {
-            //std.debug.print("hello\n", .{});
             const inspector: *Inspector = @ptrFromInt(self.objectPtr.?);
             inspector.render_(@intFromFloat(self.rect.x), @intFromFloat(self.rect.y));
+        },
+        .fileBrowser => {
+            const fileBrowser: *FileBrowser = @ptrFromInt(self.objectPtr.?);
+            fileBrowser.render_(@intFromFloat(self.rect.x), @intFromFloat(self.rect.y));
         },
         else => {},
     }
@@ -60,27 +69,34 @@ pub fn sendLeftClick(self: @This()) void {
             const inspector: *Inspector = @ptrFromInt(self.objectPtr.?);
             inspector.leftClickEvent(x, y);
         },
-        else => {},
-    }
-}
-pub fn sendResizeEvent(self: @This()) void {
-    var x: i32 = rl.getScreenWidth();
-    var y: i32 = rl.getScreenHeight();
-    switch (self.type) {
-        .inspector => {
-            const inspector: *Inspector = @ptrFromInt(self.objectPtr.?);
-            if (self.anchors.right == .side) {
-                x = x - @as(i32, @intFromFloat(self.rect.x));
-            } else {
-                x = x - 100;
-            }
-            if (self.anchors.down == .side) {
-                y = y - @as(i32, @intFromFloat(self.rect.y));
-            } else {
-                y = y - 100;
-            }
-            inspector.resizeEvent(x - 1, y - 1);
+        .fileBrowser => {
+            const fileBrowser: *FileBrowser = @ptrFromInt(self.objectPtr.?);
+            fileBrowser.leftClickEvent(x, y);
         },
         else => {},
     }
+}
+pub fn sendResizeEvent(self: *@This()) void {
+    _ = self;
+    //var x: i32 = rl.getScreenWidth();
+    //var y: i32 = rl.getScreenHeight();
+    //switch (self.type) {
+    //.inspector => {
+    //const inspector: *Inspector = @ptrFromInt(self.objectPtr.?);
+    //if (self.anchors.right == .side) {
+    //x = x - @as(i32, @intFromFloat(self.rect.x));
+    //} else {
+    //x = x - 100;
+    //}
+    //if (self.anchors.down == .side) {
+    //y = y - @as(i32, @intFromFloat(self.rect.y));
+    //} else {
+    //y = y - 100;
+    //}
+    //inspector.resizeEvent(x - 1, y - 1);
+    //self.rect.width = @floatFromInt(x);
+    //self.rect.height = @floatFromInt(y);
+    //},
+    //else => {},
+    //}
 } //}}}
