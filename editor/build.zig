@@ -26,7 +26,7 @@ pub fn build(b: *std.Build) void {
                                 engine.Param(u32, "width", 150),
                                 engine.Param(u32, "height", 150),
                             }), "rect", .{}),
-                            engine.Param(enum { none }, "type", .none),
+                            engine.Param(enum { inspector }, "type", .inspector),
                         }),
                         b.allocator,
                     ),

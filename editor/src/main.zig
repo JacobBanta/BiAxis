@@ -14,13 +14,14 @@ pub fn main() anyerror!void {
     var Scene = tmp{};
     Scene.init();
 
-    rl.setTargetFPS(60);
+    //rl.setTargetFPS(60);
 
     while (!rl.windowShouldClose()) {
         rl.beginDrawing();
         defer rl.endDrawing();
 
         rl.clearBackground(rl.Color.white);
+        rl.drawFPS(0, 0);
         Scene.update();
         Scene.render();
     }
