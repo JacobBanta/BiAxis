@@ -17,25 +17,35 @@ pub fn build(b: *std.Build) void {
             .entities = &[_]engine.Entity{
                 .{ .scripts = &[_]engine.Script{
                     engine.getScript("src/UI.zig", engine.ParamList({}), b.allocator),
-                    engine.getScript(
-                        "src/container.zig",
-                        engine.ParamList(.{
-                            engine.Param(engine.ParamList(.{
-                                engine.Param(u32, "x", 50),
-                                engine.Param(u32, "y", 50),
-                                engine.Param(u32, "width", 150),
-                                engine.Param(u32, "height", 150),
-                            }), "rect", .{}),
-                            engine.Param(enum { inspector }, "type", .inspector),
-                        }),
-                        b.allocator,
-                    ),
+                    engine.getScript("src/container.zig", engine.ParamList(.{
+                        engine.Param(engine.ParamList(.{
+                            engine.Param(u32, "x", 50),
+                            engine.Param(u32, "y", 50),
+                            engine.Param(u32, "width", 150),
+                            engine.Param(u32, "height", 150),
+                        }), "rect", .{}),
+                        engine.Param(enum { inspector }, "type", .inspector),
+                    }), b.allocator),
                     engine.getScript(
                         "src/inspector.zig",
                         engine.Param(engine.ParamList(.{
                             engine.Param(u32, "w", 100),
                             engine.Param(u32, "h", 100),
                         }), "size", .{}),
+                        b.allocator,
+                    ),
+                    engine.getScript("src/container.zig", engine.ParamList(.{
+                        engine.Param(engine.ParamList(.{
+                            engine.Param(u32, "x", 300),
+                            engine.Param(u32, "y", 75),
+                            engine.Param(u32, "width", 150),
+                            engine.Param(u32, "height", 150),
+                        }), "rect", .{}),
+                        engine.Param(enum { fileBrowser }, "type", .fileBrowser),
+                    }), b.allocator),
+                    engine.getScript(
+                        "src/fileBrowser.zig",
+                        engine.ParamList({}),
                         b.allocator,
                     ),
                 } },
