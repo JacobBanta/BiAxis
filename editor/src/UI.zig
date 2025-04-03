@@ -31,7 +31,7 @@ pub fn sendResizeEvent(entity: anytype) void {
 
 pub fn setMouseBorder(entity: anytype) void {
     for (entity.getScene().getScripts(*@import("container.zig"))) |c| {
-        const boundary = 10;
+        const boundary = 10; //{{{
         if (rl.getMousePosition().x > c.rect.x - boundary and
             rl.getMousePosition().x < c.rect.x + boundary and
             rl.getMousePosition().y < c.rect.y + c.rect.height - boundary and
@@ -95,7 +95,7 @@ pub fn setMouseBorder(entity: anytype) void {
         {
             rl.setMouseCursor(.resize_nesw);
             return;
-        }
+        } //}}}
     }
     rl.setMouseCursor(.default);
 }

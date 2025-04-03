@@ -268,8 +268,6 @@ pub fn sendResizeEvent(self: *@This()) void {
         },
     } //}}}
     if (resize) {
-        std.debug.print("x: {d}\n", .{x});
-        std.debug.print("y: {d}\n", .{y});
         self.rect.width = @floatFromInt(w);
         self.rect.x = @floatFromInt(x);
         self.rect.height = @floatFromInt(h);
