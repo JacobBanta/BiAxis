@@ -14,6 +14,7 @@ pub fn leftClickEvent(self: *@This(), x: i32, y: i32) void {
 pub fn resizeEvent(self: *@This(), w: i32, h: i32) void {
     self.size.w = w;
     self.size.h = h;
+    std.debug.print("resize: ({d}, {d})\n", .{ w, h });
 }
 
 pub fn render_(self: @This(), offsetX: i32, offsetY: i32) void {

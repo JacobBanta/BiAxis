@@ -11,11 +11,10 @@ pub fn build(b: *std.Build) void {
     const raylib = raylib_dep.module("raylib");
     const raylib_artifact = raylib_dep.artifact("raylib");
 
-    const engine_mod = engine.addModule(
-        b,
-        .{
-            .entities = &[_]engine.Entity{
-                .{ .scripts = &[_]engine.Script{
+    const engine_mod = engine.addModule(b, .{
+        .entities = &[_]engine.Entity{
+            .{
+                .scripts = &[_]engine.Script{
                     engine.getScript("src/UI.zig", engine.ParamList({}), b.allocator),
                     engine.getScript("src/container.zig", engine.ParamList(.{
                         engine.Param(engine.ParamList(.{
@@ -25,6 +24,12 @@ pub fn build(b: *std.Build) void {
                             engine.Param(u32, "height", 150),
                         }), "rect", .{}),
                         engine.Param(enum { inspector }, "type", .inspector),
+                        engine.Param(engine.ParamList(.{
+                            engine.Param(enum { side }, "right", .side),
+                            engine.Param(union(enum) { percentage: f32 }, "left", .{ .percentage = 0.8 }),
+                            engine.Param(enum { side }, "down", .side),
+                            engine.Param(union(enum) { fixed: i32 }, "up", .{ .fixed = 20 }),
+                        }), "anchors", .{}),
                     }), b.allocator),
                     engine.getScript(
                         "src/inspector.zig",
@@ -42,19 +47,22 @@ pub fn build(b: *std.Build) void {
                             engine.Param(u32, "height", 150),
                         }), "rect", .{}),
                         engine.Param(enum { fileBrowser }, "type", .fileBrowser),
+                        engine.Param(engine.ParamList(.{
+                            engine.Param(enum { side }, "left", .side),
+                            engine.Param(union(enum) { percentage: f32 }, "right", .{ .percentage = 0.2 }),
+                            engine.Param(enum { side }, "down", .side),
+                            engine.Param(union(enum) { percentage: f32 }, "up", .{ .percentage = 0.7 }),
+                        }), "anchors", .{}),
                     }), b.allocator),
                     engine.getScript(
                         "src/fileBrowser.zig",
                         engine.ParamList({}),
                         b.allocator,
                     ),
-                } },
+                },
             },
         },
-        &[_]std.Build.Module.Import{.{ .module = raylib, .name = "raylib" }},
-        "engine",
-        opts,
-    );
+    }, &[_]std.Build.Module.Import{.{ .module = raylib, .name = "raylib" }}, "engine", opts);
 
     const exe = b.addExecutable(.{
         .name = "2e3_editor",
