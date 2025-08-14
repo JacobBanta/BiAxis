@@ -3,7 +3,7 @@
     .version = "0.0.1",
     .fingerprint = 0xe59cc1adc03c8b9d,
 
-    .minimum_zig_version = "0.14.0",
+    .minimum_zig_version = "0.15.0-dev.1517+d62515835",
 
     .dependencies = .{
         .raylib_zig = .{
