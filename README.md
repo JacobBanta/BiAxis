@@ -1,10 +1,13 @@
+# BiAxis
 ## Documentation
 
-Disclaimer: this was AI generated
+Disclaimer: This documentation was AI generated. I will probably rewrite it by 1.0.0
+
+Looking back, this is not really very helpful.
 
 ### Overview
 
-The game engine is a flexible and customizable framework for building games. It allows users to create custom scripts that can be loaded and executed by the engine. The engine is configured using the `build.zig` file, which defines the initial state of the game engine and its components.
+BiAxis is a flexible and customizable framework for building games. It allows users to create custom scripts that can be loaded and executed by the engine. The engine is configured using the `build.zig` file, which defines the initial state of BiAxis and its components.
 
 ### Configuration Structure
 
@@ -47,7 +50,7 @@ This loads the `UI.zig` script with no parameters.
 
 ### Scripting
 
-The game engine allows users to create custom scripts that can be loaded and executed by the engine. The scripts can define several functions, including `init`, `deinit`, `render`, `update`, and `fixedUpdate`, which are called by the engine at specific times.
+BiAxis allows users to create custom scripts that can be loaded and executed by the engine. The scripts can define several functions, including `init`, `deinit`, `render`, `update`, and `fixedUpdate`, which are called by the engine at specific times.
 
 #### Script Functions
 
