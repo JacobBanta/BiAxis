@@ -18,6 +18,9 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const opts = .{ .target = target, .optimize = optimize };
-    const e = engine.addModule(b, s, &[_]std.Build.Module.Import{}, "engine", opts);
+    const zon_tool = (b.lazyDependency("zon_tool", opts) orelse return).module("zon_tool");
+    const e = engine.addModule(b, s, &[_]std.Build.Module.Import{
+        .{ .module = zon_tool, .name = "zon_tool" },
+    }, "engine", opts);
     b.getInstallStep().dependOn(e.step);
 }

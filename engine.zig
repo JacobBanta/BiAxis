@@ -1,4 +1,7 @@
 const std = @import("std");
+var modules: struct { //{{{
+    zon_tool: bool = false,
+} = undefined; //}}}
 
 pub fn getRegistry(allocator: std.mem.Allocator, files: []const []const u8) []const u8 { //{{{
     var buf = std.ArrayList(u8).init(allocator);
@@ -87,12 +90,21 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
         \\var deltaTime: f64 = 0;
         \\var fixedUpdateTime: f64 = 0;
     , .{}) catch unreachable;
+    if (modules.zon_tool)
+        writer.print("const zon_tool = @import(\"zon_tool\");", .{}) catch unreachable;
+
     for (0..scene.entities.len) |i| { //{{{
         writer.print("entity{d}: struct{{", .{i}) catch unreachable;
         for (0..scene.entities[i].scripts.len) |x| {
-            writer.print(
-                \\script{d}: registry.@"{s}" = convertZon(registry.@"{1s}"@import("entity{d}.script{0d}.zon")),
-            , .{ x, scene.entities[i].scripts[x].script.path, i }) catch unreachable;
+            if (modules.zon_tool) {
+                writer.print(
+                    \\script{0d}: registry.@"{1s}" = zon_tool.getZon(registry.@"{1s}", @import("entity{2d}.script{0d}.zon")),
+                , .{ x, scene.entities[i].scripts[x].script.path, i }) catch unreachable;
+            } else {
+                writer.print(
+                    \\script{d}: registry.@"{s}" = @import("entity{d}.script{0d}.zon"),
+                , .{ x, scene.entities[i].scripts[x].script.path, i }) catch unreachable;
+            }
         }
         writer.print(
             \\pub inline fn getData(self: @This(), T: type, comptime fieldName: []const u8) !T {{
@@ -274,6 +286,13 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
     return buf.items;
 } //}}}
 pub fn addModule(b: *std.Build, scene: Scene, externalImports: []const std.Build.Module.Import, name: []const u8, opts: anytype) Mod { //{{{
+    for (externalImports) |i| {
+        inline for (@typeInfo(@TypeOf(modules)).@"struct".fields) |f| {
+            if (std.mem.eql(u8, i.name, f.name)) {
+                @field(modules, f.name) = true;
+            }
+        }
+    }
     var files = std.ArrayList([]const u8).init(b.allocator);
     for (scene.entities) |entity| {
         for (entity.scripts) |script| {
