@@ -1,24 +1,24 @@
 .{
-    .minimum_zig_version = "0.14.0",
-    .fingerprint = 0xccf1f1bacfd95c4a,
-    .name = .editor,
+    .name = .BiAxis_editor,
     .version = "0.0.0",
+    .minimum_zig_version = "0.15.1",
+    .fingerprint = 0xefb75f7301e569cc,
     .dependencies = .{
         .raylib_zig = .{
-            .url = "git+https://github.com/Not-Nik/raylib-zig#e8167c2e560402510220fdf419afbc7c2fc51e5d",
-            .hash = "raylib_zig-5.6.0-dev-KE8REIouBQDbt-DSHmhUc9YFjJ_pFUS5tvRDPnBzsMdU",
+            .url = "git+https://github.com/CashWasabi/raylib-zig#dbd4975151dbfe7a9ad20430754e979f2e2ddb30",
+            .hash = "raylib_zig-5.6.0-dev-KE8REEI6BQCpCZisC7MPP_rCakDsK9ixTy95WJmQiWTm",
         },
-        ._2d_engine_3 = .{
-            .url = "git+http://50.116.40.226:3000/jacob/2d-engine-3#aeedfae37798c94ecf89078ac09293a85779b5ae",
-            .hash = "_2d_engine_3-0.0.1-nYs8wERAAAB2GbtuH_LRVzFSnIioRbDHK4c1ZHS15amc",
+        .BiAxis = .{
+            .path = "../",
+        },
+        .zon_tool = .{
+            .url = "git+https://github.com/JacobBanta/zon_tool#7bf387293ca4c299b5c0e494f26d5564fcf86f60",
+            .hash = "zon_tool-1.0.0-gprEyzMVAAAsJX7LvKnXLvi-MDXJBVpS7xbKdNPUt6xQ",
         },
     },
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "src",
-        // For example...
-        //"LICENSE",
-        //"README.md",
     },
 }

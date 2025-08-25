@@ -1,10 +1,10 @@
 const rl = @import("raylib");
 const std = @import("std");
 const SIZE = 150;
-files: std.BoundedArray([:0]const u8, 30) = undefined,
-filePaths: std.BoundedArray([:0]const u8, 30) = undefined,
+files: [30]?[:0]const u8 = undefined,
+filePaths: [30]?[:0]const u8 = undefined,
 fileLayout: i32 = 0,
-path: [:0]const u8 = "src",
+path: [:0]const u8 = "",
 fileSelected: ?i32 = null,
 
 size: struct {
@@ -14,14 +14,19 @@ size: struct {
 
 pub fn init(self: *@This()) void {
     var walker = (std.fs.cwd().openDir("./", .{ .iterate = true }) catch unreachable).walk(std.heap.page_allocator) catch unreachable;
-    self.files = std.BoundedArray([:0]const u8, 30).init(0) catch unreachable;
-    self.filePaths = std.BoundedArray([:0]const u8, 30).init(0) catch unreachable;
+    self.files = .{null} ** 30;
+    self.filePaths = .{null} ** 30;
     while (walker.next() catch unreachable) |i| {
         if (std.mem.indexOf(u8, i.path, ".zig-cache") != null) continue;
         if (std.mem.indexOf(u8, i.path, "zig-out") != null) continue;
         if (std.mem.indexOf(u8, i.path, ".git") != null) continue;
-        self.files.append(std.heap.page_allocator.dupeZ(u8, i.basename) catch unreachable) catch unreachable;
-        self.filePaths.append(std.heap.page_allocator.dupeZ(u8, i.path) catch unreachable) catch unreachable;
+        for (0..self.files.len) |j| {
+            if (self.files[j]) |_| continue;
+
+            self.files[j] = std.heap.page_allocator.dupeZ(u8, i.basename) catch unreachable;
+            self.filePaths[j] = std.heap.page_allocator.dupeZ(u8, i.path) catch unreachable;
+            break;
+        }
     }
 }
 
@@ -51,9 +56,9 @@ pub fn leftClickEvent(self: *@This(), x: i32, y: i32) void {
                     chars += @intCast(i.len + 1);
                     if (index == path) break;
                 }
-                for (self.filePaths.slice(), 0..) |f2, i| {
-                    if (std.mem.eql(u8, f2, self.path[0..@intCast(chars - 1)])) {
-                        self.path = self.filePaths.get(i);
+                for (self.filePaths, 0..) |f2, i| {
+                    if (std.mem.eql(u8, f2 orelse break, self.path[0..@intCast(chars - 1)])) {
+                        self.path = self.filePaths[i].?;
                     }
                 }
 
@@ -69,13 +74,13 @@ pub fn leftClickEvent(self: *@This(), x: i32, y: i32) void {
 
 pub fn getFile(self: @This(), file: i32) [:0]const u8 {
     var index: i32 = 0;
-    for (self.filePaths.slice()) |f| {
-        if (std.mem.indexOf(u8, f, self.path)) |i| {
+    for (self.filePaths) |f| {
+        if (std.mem.indexOf(u8, f orelse break, self.path)) |i| {
             if (i != 0) continue;
-            if (f.len == self.path.len) continue;
+            if (f.?.len == self.path.len) continue;
         } else continue;
-        if (std.mem.indexOf(u8, f[self.path.len + 1 ..], std.fs.path.sep_str) != null) continue;
-        if (index == file) return f;
+        if (std.mem.indexOf(u8, f.?[self.path.len + 1 ..], std.fs.path.sep_str) != null) continue;
+        if (index == file) return f.?;
         index += 1;
     }
     return "";
@@ -108,22 +113,22 @@ const topTextSize = 30;
 pub fn render_(self: @This(), offsetX: i32, offsetY: i32) void {
     rl.drawRectangle(offsetX, offsetY, self.size.w, self.size.h, rl.Color.dark_gray);
     var index: i32 = 0;
-    for (self.filePaths.slice()) |f| {
-        if (std.mem.indexOf(u8, f, self.path)) |i| {
+    for (self.filePaths) |f| {
+        if (std.mem.indexOf(u8, f orelse break, self.path)) |i| {
             if (i != 0) continue;
-            if (f.len == self.path.len) continue;
+            if (f.?.len == self.path.len) continue;
         } else continue;
-        if (std.mem.indexOf(u8, f[self.path.len + 1 ..], std.fs.path.sep_str) != null) continue;
+        if (std.mem.indexOf(u8, f.?[self.path.len + 1 ..], std.fs.path.sep_str) != null) continue;
         rl.drawRectangle(2 + offsetX + @mod(index, self.fileLayout) * SIZE, 2 + offsetY + topTextSize + @divFloor(index, self.fileLayout) * SIZE, SIZE - 4, SIZE - 4, rl.Color.black);
         if (self.fileSelected) |i| {
             if (index == i) {
                 rl.drawRectangleLines(1 + offsetX + @mod(index, self.fileLayout) * SIZE, 1 + offsetY + topTextSize + @divFloor(index, self.fileLayout) * SIZE, SIZE - 2, SIZE - 2, rl.Color.orange);
             }
         }
-        var xSize = rl.measureText(f[if (self.path.len == 0) 0 else (self.path.len + 1)..], 20);
+        var xSize = rl.measureText(f.?[if (self.path.len == 0) 0 else (self.path.len + 1)..], 20);
 
         if (xSize > SIZE) {
-            const text = std.heap.page_allocator.dupeZ(u8, f[if (self.path.len == 0) 0 else self.path.len + 1..]) catch unreachable;
+            const text = std.heap.page_allocator.dupeZ(u8, f.?[if (self.path.len == 0) 0 else self.path.len + 1..]) catch unreachable;
             defer std.heap.page_allocator.free(text);
             var index2: usize = 1;
             text[text.len - 2] = '.';
@@ -139,7 +144,7 @@ pub fn render_(self: @This(), offsetX: i32, offsetY: i32) void {
                 break;
             }
         } else {
-            rl.drawText(f[if (self.path.len == 0) 0 else self.path.len + 1..], offsetX + @mod(index, self.fileLayout) * SIZE + 3 + @divFloor(SIZE - xSize, 2), offsetY + topTextSize + 3 + @divFloor(index, self.fileLayout) * SIZE, 20, rl.Color.white);
+            rl.drawText(f.?[if (self.path.len == 0) 0 else self.path.len + 1..], offsetX + @mod(index, self.fileLayout) * SIZE + 3 + @divFloor(SIZE - xSize, 2), offsetY + topTextSize + 3 + @divFloor(index, self.fileLayout) * SIZE, 20, rl.Color.white);
         }
         index += 1;
     }

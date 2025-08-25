@@ -3,7 +3,13 @@ const std = @import("std");
 const Inspector = @import("inspector.zig");
 const FileBrowser = @import("fileBrowser.zig");
 rect: rl.Rectangle = rl.Rectangle.init(0, 0, 0, 0),
-objectPtr: ?usize = null,
+objectPtr: ?union(Type) {
+    none: void,
+    inspector: *Inspector,
+    toolbar: void,
+    fileBrowser: *FileBrowser,
+    scene: void,
+} = null,
 type: Type = .none,
 anchors: struct {
     up: Anchor = .none,
@@ -34,26 +40,26 @@ pub const Anchor = union(AnchorMode) {
 pub fn init(self: *@This(), entity: anytype) void { //{{{
     switch (self.type) {
         .inspector => {
-            self.objectPtr = @intFromPtr(entity.getScene().getScripts(*@import("inspector.zig"))[0]);
+            self.objectPtr = .{ .inspector = entity.getScene().getScripts(*Inspector)[0] };
         },
         .fileBrowser => {
-            self.objectPtr = @intFromPtr(entity.getScene().getScripts(*@import("fileBrowser.zig"))[0]);
+            self.objectPtr = .{ .fileBrowser = entity.getScene().getScripts(*FileBrowser)[0] };
         },
-        else => {},
+        else => {
+            @panic("AHHH");
+        },
     }
     self.sendResizeEvent();
 } //}}}
 pub fn render(self: @This()) void { //{{{
-    switch (self.type) {
-        .inspector => {
-            const inspector: *Inspector = @ptrFromInt(self.objectPtr.?);
-            inspector.render_(@intFromFloat(self.rect.x), @intFromFloat(self.rect.y));
+    switch (self.objectPtr.?) {
+        .inspector => |i| {
+            i.render_(@intFromFloat(self.rect.x), @intFromFloat(self.rect.y));
         },
-        .fileBrowser => {
-            const fileBrowser: *FileBrowser = @ptrFromInt(self.objectPtr.?);
-            fileBrowser.render_(@intFromFloat(self.rect.x), @intFromFloat(self.rect.y));
+        .fileBrowser => |f| {
+            f.render_(@intFromFloat(self.rect.x), @intFromFloat(self.rect.y));
         },
-        else => {},
+        else => unreachable,
     }
 } //}}}
 
@@ -61,14 +67,12 @@ pub fn render(self: @This()) void { //{{{
 pub fn sendLeftClick(self: @This()) void {
     const x: i32 = @intFromFloat(rl.getMousePosition().x - self.rect.x);
     const y: i32 = @intFromFloat(rl.getMousePosition().y - self.rect.y);
-    switch (self.type) {
-        .inspector => {
-            const inspector: *Inspector = @ptrFromInt(self.objectPtr.?);
-            inspector.leftClickEvent(x, y);
+    switch (self.objectPtr.?) {
+        .inspector => |i| {
+            i.leftClickEvent(x, y);
         },
-        .fileBrowser => {
-            const fileBrowser: *FileBrowser = @ptrFromInt(self.objectPtr.?);
-            fileBrowser.leftClickEvent(x, y);
+        .fileBrowser => |f| {
+            f.leftClickEvent(x, y);
         },
         else => {},
     }
@@ -272,14 +276,12 @@ pub fn sendResizeEvent(self: *@This()) void {
         self.rect.x = @floatFromInt(x);
         self.rect.height = @floatFromInt(h);
         self.rect.y = @floatFromInt(y);
-        switch (self.type) {
-            .inspector => {
-                const inspector: *Inspector = @ptrFromInt(self.objectPtr.?);
-                inspector.resizeEvent(w, h);
+        switch (self.objectPtr.?) {
+            .inspector => |i| {
+                i.resizeEvent(w, h);
             },
-            .fileBrowser => {
-                const fileBrowser: *FileBrowser = @ptrFromInt(self.objectPtr.?);
-                fileBrowser.resizeEvent(w, h);
+            .fileBrowser => |f| {
+                f.resizeEvent(w, h);
             },
             else => {},
         }
