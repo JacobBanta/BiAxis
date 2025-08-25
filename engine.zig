@@ -285,7 +285,7 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
     writer.defaultFlush() catch unreachable;
     return buf.items;
 } //}}}
-pub fn addModule(b: *std.Build, scene: Scene, externalImports: []const std.Build.Module.Import, name: []const u8, opts: anytype) Mod { //{{{
+pub fn addModule(b: *std.Build, scene: Scene, externalImports: []const std.Build.Module.Import, comptime name: []const u8, opts: anytype) Mod { //{{{
     for (externalImports) |i| {
         inline for (@typeInfo(@TypeOf(modules)).@"struct".fields) |f| {
             if (std.mem.eql(u8, i.name, f.name)) {
@@ -307,7 +307,7 @@ pub fn addModule(b: *std.Build, scene: Scene, externalImports: []const std.Build
         .name = "registry",
     }) catch unreachable;
     const writeFiles = b.addWriteFiles();
-    const sceneWriteFile = writeFiles.add(name, makeScene(b.allocator, scene));
+    const sceneWriteFile = writeFiles.add(name ++ ".zig", makeScene(b.allocator, scene));
     for (0..scene.entities.len) |entity| {
         for (0..scene.entities[entity].scripts.len) |script| {
             var file = std.ArrayList(u8).empty;
@@ -315,7 +315,7 @@ pub fn addModule(b: *std.Build, scene: Scene, externalImports: []const std.Build
             _ = writeFiles.add(file.items, scene.entities[entity].scripts[script].script.data);
         }
     }
-    const mod = b.addModule(name, .{ .root_source_file = sceneWriteFile, .imports = imports.items, .optimize = opts.optimize, .target = opts.target });
+    const mod = b.createModule(.{ .root_source_file = sceneWriteFile, .imports = imports.items, .optimize = opts.optimize, .target = opts.target });
     writeFiles.step.dependOn(&registry.step);
     return .{ .module = mod, .step = &writeFiles.step };
 }
