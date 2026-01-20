@@ -3,7 +3,7 @@
     .version = "0.1.1",
     .fingerprint = 0x6309e92008745b3f,
 
-    .minimum_zig_version = "0.15.1",
+    .minimum_zig_version = "0.15.2",
 
     .dependencies = .{
         .zon_tool = .{

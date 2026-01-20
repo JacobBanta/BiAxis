@@ -50,6 +50,7 @@ pub const Scene = struct { //{{{
 };
 
 pub const Entity = struct {
+    type: enum { single, group } = .single,
     scripts: []const Script = &[_]Script{},
 };
 
@@ -94,7 +95,11 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
         writer.print("const zon_tool = @import(\"zon_tool\");", .{}) catch unreachable;
 
     for (0..scene.entities.len) |i| { //{{{
-        writer.print("entity{d}: struct{{", .{i}) catch unreachable;
+        writer.print("entity{d}: ", .{i}) catch unreachable;
+        if (scene.entities[i].type == .group) {
+            _ = writer.write("std.MultiArrayList(") catch unreachable;
+        }
+        _ = writer.write("struct{") catch unreachable;
         for (0..scene.entities[i].scripts.len) |x| {
             if (modules.zon_tool) {
                 writer.print(
@@ -122,9 +127,17 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
                 \\if (@hasField(@TypeOf(self.script{d}), fieldName)) @field(self.script{d}, fieldName) = value;
             , .{ x, x }) catch unreachable;
         }
-        writer.print(
-            \\}} pub inline fn getScene(self: *@This()) *This {{ return @fieldParentPtr("entity{d}", self); }} }} = .{{}},
-        , .{i}) catch unreachable;
+        _ = writer.write("}") catch unreachable;
+        if (scene.entities[i].type == .single) {
+            writer.print(
+                \\pub inline fn getScene(self: *@This()) *This {{ return @fieldParentPtr("entity{d}", self); }}
+            , .{i}) catch unreachable;
+        }
+        if (scene.entities[i].type == .single) {
+            _ = writer.write("} = .{},") catch unreachable;
+        } else if (scene.entities[i].type == .group) {
+            _ = writer.write("}) = .empty,") catch unreachable;
+        }
     } //}}}
 
     const funcs = [_][]const u8{ "render", "update", "init", "fixedUpdate", "deinit" }; //{{{
@@ -157,36 +170,49 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
             , .{}) catch unreachable;
         }
         for (0..scene.entities.len) |entity| {
+            if (scene.entities[entity].type == .single) {
+                writer.print("{{var entity = &self.entity{d}; _ = &entity;", .{entity}) catch unreachable;
+            } else if (scene.entities[entity].type == .group) {
+                writer.print("for(0..self.entity{0d}.len)|x|{{ var tempEntity = self.entity{0d}.get(x); _ = &tempEntity;var entity = &tempEntity;_ = &entity;", .{entity}) catch unreachable;
+            }
+
             for (0..scene.entities[entity].scripts.len) |script| {
                 const s = scene.entities[entity].scripts[script].script;
                 writer.print(
                     \\if(@hasDecl(registry.@"{0s}", "{1s}")){{
                     \\if(@TypeOf(registry.@"{0s}".{1s}) == fn() void)registry.@"{0s}".{1s}();
-                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(registry.@"{0s}") void)registry.@"{0s}".{1s}(self.entity{2d}.script{3d});
-                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(*registry.@"{0s}") void)registry.@"{0s}".{1s}(&self.entity{2d}.script{3d});
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(registry.@"{0s}") void)registry.@"{0s}".{1s}((entity.*).script{2d});
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(*registry.@"{0s}") void)registry.@"{0s}".{1s}(&(entity.*).script{2d});
                     \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(f64) void)registry.@"{0s}".{1s}(time);
-                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(registry.@"{0s}", f64) void)registry.@"{0s}".{1s}(self.entity{2d}.script{3d}, time);
-                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(*registry.@"{0s}", f64) void)registry.@"{0s}".{1s}(&self.entity{2d}.script{3d}, time);
-                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(anytype) void)registry.@"{0s}".{1s}(&self.entity{2d});
-                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(registry.@"{0s}", anytype) void)registry.@"{0s}".{1s}(self.entity{2d}.script{3d}, &self.entity{2d});
-                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(*registry.@"{0s}", anytype) void)registry.@"{0s}".{1s}(&self.entity{2d}.script{3d}, &self.entity{2d});
-                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(f64, anytype) void)registry.@"{0s}".{1s}(time, &self.entity{2d});
-                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(registry.@"{0s}", f64, anytype) void)registry.@"{0s}".{1s}(self.entity{2d}.script{3d}, time, &self.entity{2d});
-                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(*registry.@"{0s}", f64, anytype) void)registry.@"{0s}".{1s}(&self.entity{2d}.script{3d}, time, &self.entity{2d});
-                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(anytype, f64) void)registry.@"{0s}".{1s}( &self.entity{2d}, time);
-                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(registry.@"{0s}", anytype, f64) void)registry.@"{0s}".{1s}(self.entity{2d}.script{3d}, &self.entity{2d}, time);
-                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(*registry.@"{0s}", anytype, f64) void)registry.@"{0s}".{1s}(&self.entity{2d}.script{3d}, &self.entity{2d}, time);
-                , .{ s.path, func, entity, script }) catch unreachable;
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(registry.@"{0s}", f64) void)registry.@"{0s}".{1s}((entity.*).script{2d}, time);
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(*registry.@"{0s}", f64) void)registry.@"{0s}".{1s}(&(entity.*).script{2d}, time);
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(anytype) void)registry.@"{0s}".{1s}(&(entity.*));
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(registry.@"{0s}", anytype) void)registry.@"{0s}".{1s}((entity.*).script{2d},entity);
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(*registry.@"{0s}", anytype) void)registry.@"{0s}".{1s}(&(entity.*).script{2d},entity);
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(f64, anytype) void)registry.@"{0s}".{1s}(time,entity);
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(registry.@"{0s}", f64, anytype) void)registry.@"{0s}".{1s}((entity.*).script{2d}, time,entity);
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(*registry.@"{0s}", f64, anytype) void)registry.@"{0s}".{1s}(&(entity.*).script{2d}, time,entity);
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(anytype, f64) void)registry.@"{0s}".{1s}(entity, time);
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(registry.@"{0s}", anytype, f64) void)registry.@"{0s}".{1s}((entity.*).script{2d},entity, time);
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(*registry.@"{0s}", anytype, f64) void)registry.@"{0s}".{1s}(&(entity.*).script{2d},entity, time);
+                , .{ s.path, func, script }) catch unreachable;
                 writer.print("}}", .{}) catch unreachable;
             }
+            if (scene.entities[entity].type == .single) {
+                writer.print("}}", .{}) catch unreachable;
+            } else if (scene.entities[entity].type == .group) {
+                writer.print("self.entity{0d}.set(x, tempEntity);}}", .{entity}) catch unreachable;
+            }
         }
-        writer.print("}}", .{}) catch unreachable;
+        writer.print("}}\n", .{}) catch unreachable;
     } //}}}
 
     writer.print("pub fn getScripts(self: *@This(), script: type)", .{}) catch unreachable; //{{{
     for (0..scene.entities.len) |entity| {
+        if (scene.entities[entity].type == .group) continue;
         outer: for (0..scene.entities[entity].scripts.len) |script| {
             for (0..entity + 1) |entity2| {
+                if (scene.entities[entity2].type == .group) continue;
                 if (entity2 == entity) {
                     for (0..script) |script2| {
                         if (std.mem.eql(
@@ -211,6 +237,7 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
             }
             var counter: usize = 0;
             for (0..scene.entities.len) |entity2| {
+                if (scene.entities[entity2].type == .group) continue;
                 for (0..scene.entities[entity2].scripts.len) |script2| {
                     if (std.mem.eql(
                         u8,
@@ -227,8 +254,10 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
     }
     writer.print("[0]script {{", .{}) catch unreachable;
     for (0..scene.entities.len) |entity| {
+        if (scene.entities[entity].type == .group) continue;
         outer: for (0..scene.entities[entity].scripts.len) |script| {
             for (0..entity + 1) |entity2| {
+                if (scene.entities[entity2].type == .group) continue;
                 if (entity2 == entity) {
                     for (0..script) |script2| {
                         if (std.mem.eql(
@@ -253,6 +282,7 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
             }
             writer.print("if(script == registry.@\"{s}\") return [_]script{{", .{scene.entities[entity].scripts[script].script.path}) catch unreachable;
             for (0..scene.entities.len) |entity2| {
+                if (scene.entities[entity2].type == .group) continue;
                 for (0..scene.entities[entity2].scripts.len) |script2| {
                     if (std.mem.eql(
                         u8,
@@ -267,6 +297,7 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
 
             writer.print("if(script == *registry.@\"{s}\") return [_]script{{", .{scene.entities[entity].scripts[script].script.path}) catch unreachable;
             for (0..scene.entities.len) |entity2| {
+                if (scene.entities[entity2].type == .group) continue;
                 for (0..scene.entities[entity2].scripts.len) |script2| {
                     if (std.mem.eql(
                         u8,
