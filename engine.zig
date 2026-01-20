@@ -130,7 +130,7 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
         _ = writer.write("}") catch unreachable;
         if (scene.entities[i].type == .single) {
             writer.print(
-                \\pub inline fn getScene(self: *@This()) *This {{ return @fieldParentPtr("entity{d}", self); }}
+                \\pub inline fn getScene(self: *@This()) *This {{ return @alignCast(@fieldParentPtr("entity{d}", self)); }}
             , .{i}) catch unreachable;
         }
         if (scene.entities[i].type == .single) {
