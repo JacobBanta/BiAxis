@@ -313,6 +313,18 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
     }
 
     writer.print("return [0]script{{}};}}", .{}) catch unreachable; //}}}
+
+    //setData{{{
+    writer.print(
+        \\pub fn setData(self: *@This(), T: type, value: T, comptime fieldName: []const u8) void {{
+    , .{}) catch unreachable;
+    for (0..scene.entities.len) |i| {
+        writer.print(
+            \\self.entity{d}.setData(T, value, fieldName);
+        , .{i}) catch unreachable;
+    }
+    _ = writer.write("}") catch unreachable;
+    //}}}
     writer.defaultFlush() catch unreachable;
     return buf.items;
 } //}}}
