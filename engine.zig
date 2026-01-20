@@ -319,9 +319,19 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
         \\pub fn setData(self: *@This(), T: type, value: T, comptime fieldName: []const u8) void {{
     , .{}) catch unreachable;
     for (0..scene.entities.len) |i| {
-        writer.print(
-            \\self.entity{d}.setData(T, value, fieldName);
-        , .{i}) catch unreachable;
+        if (scene.entities[i].type == .single) {
+            writer.print(
+                \\self.entity{d}.setData(T, value, fieldName);
+            , .{i}) catch unreachable;
+        } else if (scene.entities[i].type == .group) {
+            writer.print(
+                \\for(0..self.entity{0d}.len)|x|{{
+                \\var temp = self.entity{0d}.get(x);
+                \\temp.setData(T, value, fieldName);
+                \\self.entity{0d}.set(x, temp);
+                \\}}
+            , .{i}) catch unreachable;
+        }
     }
     _ = writer.write("}") catch unreachable;
     //}}}
