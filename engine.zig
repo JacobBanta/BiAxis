@@ -100,6 +100,9 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
             _ = writer.write("std.MultiArrayList(") catch unreachable;
         }
         _ = writer.write("struct{") catch unreachable;
+        if (scene.entities[i].type == .group) {
+            _ = writer.write("active: bool = true,") catch unreachable;
+        }
         for (0..scene.entities[i].scripts.len) |x| {
             if (modules.zon_tool) {
                 writer.print(
@@ -132,7 +135,29 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
             writer.print(
                 \\pub inline fn getScene(self: *@This()) *This {{ return @alignCast(@fieldParentPtr("entity{d}", self)); }}
             , .{i}) catch unreachable;
+        } else if (scene.entities[i].type == .group) {
+            //deinit{{{
+            writer.print(
+                \\pub inline fn deinit(self: *@This())void{{ if(self.active)unreachable;
+            , .{}) catch unreachable;
+            const func = "deinit";
+            for (0..scene.entities[i].scripts.len) |script| {
+                const s = scene.entities[i].scripts[script].script;
+                writer.print(
+                    \\if(@hasDecl(registry.@"{0s}", "{1s}")){{
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn() void)registry.@"{0s}".{1s}();
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(registry.@"{0s}") void)registry.@"{0s}".{1s}(self.script{2d});
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(*registry.@"{0s}") void)registry.@"{0s}".{1s}(&self.script{2d});
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(anytype) void)registry.@"{0s}".{1s}(self);
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(registry.@"{0s}", anytype) void)registry.@"{0s}".{1s}(self.script{2d},self);
+                    \\if(@TypeOf(registry.@"{0s}".{1s}) == fn(*registry.@"{0s}", anytype) void)registry.@"{0s}".{1s}(&self.script{2d},self);
+                , .{ s.path, func, script }) catch unreachable;
+                writer.print("}}", .{}) catch unreachable;
+            }
+            writer.print("}}", .{}) catch unreachable;
+            //}}}
         }
+
         if (scene.entities[i].type == .single) {
             _ = writer.write("} = .{},") catch unreachable;
         } else if (scene.entities[i].type == .group) {
@@ -173,7 +198,7 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
             if (scene.entities[entity].type == .single) {
                 writer.print("{{var entity = &self.entity{d}; _ = &entity;", .{entity}) catch unreachable;
             } else if (scene.entities[entity].type == .group) {
-                writer.print("for(0..self.entity{0d}.len)|x|{{ var tempEntity = self.entity{0d}.get(x); _ = &tempEntity;var entity = &tempEntity;_ = &entity;", .{entity}) catch unreachable;
+                writer.print("var cleanup: bool = false;for(0..self.entity{0d}.len)|x|{{ var tempEntity = self.entity{0d}.get(x); _ = &tempEntity;var entity = &tempEntity;_ = &entity;", .{entity}) catch unreachable;
             }
 
             for (0..scene.entities[entity].scripts.len) |script| {
@@ -201,7 +226,21 @@ pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 { //{{{
             if (scene.entities[entity].type == .single) {
                 writer.print("}}", .{}) catch unreachable;
             } else if (scene.entities[entity].type == .group) {
-                writer.print("self.entity{0d}.set(x, tempEntity);}}", .{entity}) catch unreachable;
+                writer.print(
+                    \\if(!tempEntity.active)cleanup = true;
+                    \\self.entity{0d}.set(x, tempEntity);
+                    \\}}
+                    \\if(cleanup){{
+                    \\var j: usize = 0;
+                    \\var items = self.entity{0d}.items(.active);
+                    \\while(j < self.entity{0d}.len) : (j += 1) {{
+                    \\if(!items[j]){{
+                    \\self.entity{0d}.swapRemove(j);
+                    \\items = self.entity{0d}.items(.active);
+                    \\}}
+                    \\}}
+                    \\}}
+                , .{entity}) catch unreachable;
             }
         }
         writer.print("}}\n", .{}) catch unreachable;
