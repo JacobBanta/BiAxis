@@ -16,5 +16,6 @@
         "build.zig",
         "build.zig.zon",
         "engine.zig",
+        "template.tp",
     },
 }
