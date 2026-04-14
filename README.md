@@ -4,9 +4,7 @@ It can be used, but it probably shouldn't be. I'm making slow progress on the ed
 ## TODO
 ### modules
 - [x] zon_tool
+- [x] sync
 - [ ] physics
-- [ ] raylib_default_run
 ### editor
-- [ ] scrollable containers
-- [ ] icons
-- [ ] more UI elements
+- restart
