@@ -5,13 +5,7 @@
 
     .minimum_zig_version = "0.16.0-dev.3146+0606af509",
 
-    .dependencies = .{
-        .zon_tool = .{
-            .url = "git+https://github.com/JacobBanta/zon_tool#00d1ac7b99fa8f003637732c45b18aa602c70199",
-            .hash = "zon_tool-1.0.0-gprEy80UAACBYMQ3eTnKyhxFauBdQZICuVrGZxr0uN54",
-            .lazy = true,
-        },
-    },
+    .dependencies = .{},
     .paths = .{
         "build.zig",
         "build.zig.zon",
