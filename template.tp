@@ -9,8 +9,17 @@ var fixedUpdateTime: f64 = 0;
 # if modules.zon_tool {
 const zon_tool = @import("zon_tool");
 # }
+var globalID: std.atomic.Value(usize) = .init(1
 # for $i in entities {
++ 1
+# }
+);
+
+# for $i in entities {
+
+# if entities[$i].type == single {
 entity$i: struct {
+    id: usize = $i + 1,
 # for $j in entities[$i].scripts {
 # set $k = entities[$i].scripts[$j].name {
 # if modules.zon_tool {
@@ -23,6 +32,171 @@ entity$i: struct {
 # }
 } = .{},
 # }
+
+# if entities[$i].type == group {
+entity$i: struct {
+    id: usize = $i + 1,
+    internal: std.MultiArrayList(T) = .empty,
+    pub const T = struct {
+        id: usize = 0,
+# for $j in entities[$i].scripts {
+# set $k = entities[$i].scripts[$j].name {
+# if modules.zon_tool {
+        script$j: registry.@"$k" = zon_tool.getZon(registry.@"$k", @import("entity$i.script$j.zon")),
+# }
+# ifn modules.zon_tool {
+        script$j: registry.@"$k" = @import("entity$i.script$j.zon"),
+# }
+# }
+# }
+    };
+    pub fn add(self: *@This(), allocator: std.mem.Allocator) !usize {
+        const id = globalID.fetchAdd(1, .acq_rel);
+        var item: T = .{.id = id};
+# for $j in entities[$i].scripts {
+# set $k = entities[$i].scripts[$j].name {
+        if (@hasDecl(registry.@"$k", "init")) {
+            call(registry.@"$k".init, .{&item.script$j, allocator orelse undefined});
+        }
+# }
+# }
+        try self.internal.append(allocator, item);
+        return id;
+    }
+    pub fn remove(self: *@This(), allocator: std.mem.Allocator, id: usize) !void {
+        for(self.internal.items(.id), 0..)|i, item|{
+            if(i == id){
+# for $j in entities[$i].scripts {
+# set $k = entities[$i].scripts[$j].name {
+                if (@hasDecl(registry.@"$k", "deinit")) {
+                    call(registry.@"$k".deinit, .{&item.script$j, allocator orelse undefined});
+                }
+# }
+# }
+                self.internal.swapRemove(item);
+                return;
+            }
+        }
+        return error.IdNotFound;
+    }
+} = .{},
+# }
+
+# }
+
+system: System = .{},
+
+pub const System = struct {
+    pub fn getIdComponent(self: *const System, id: usize, component: type) !*const component{
+        const this: *const This = @fieldParentPtr("system", self);
+        switch(id) {
+# for $i in entities {
+            $i + 1 => {
+                inline for(std.meta.fields(@TypeOf(this.entity$i)))|field|{
+                    if(field.type == component){
+                        return &@field(this.entity$i, field.name);
+                    }
+                }
+                return error.ComponentNotFound;
+            },
+# }
+            else => {
+# for $i in entities {
+# if entities[$i].type == group {
+                inline for(std.meta.fields(this.entity$i.T))|field|{
+                    if(field.type == component){
+                        for(this.entity$i.internal.items(.id), 0..)|i, item|{
+                            if(id == i){
+                                return this.entity$i.internal.items(@enumFromInt(std.meta.fieldIndex(this.entity$i.T, field.name)))[item];
+                            }
+                        }
+                    }
+                }
+# }
+# }
+# for $i in entities {
+# if entities[$i].type == group {
+                for(this.entity$i.internal.items(.id))|i|{
+                    if(id == i){
+                        return error.ComponentNotFound;
+                    }
+                }
+# }
+# }
+                return error.IdNotFound;
+            },
+        }
+    }
+    pub fn getComponents(self: *const System, component: type) ComponentIterator(component) {
+        return .{.scene = @fieldParentPtr("system", self), .index1 = 0, .index2 = null};
+    }
+    pub fn ComponentIterator(T: type) type {
+        return struct {
+            scene: *This,
+            index1: ?u63,
+            index2: ?u63,
+            pub fn next(self: *@This()) ?*T {
+                switch(self.index1 orelse return null){
+                    0 => {
+                        self.index1 = 1;
+                    },
+# for $i in entities {
+                    $i + 1 => {
+# if entities[$i].type == single {
+                        self.index1 = $i + 2;
+# }
+# if entities[$i].type == group {
+                        self.index2.? += 1;
+# }
+                    },
+# }
+                    else => {
+                        self.index1 = null;
+                    },
+                }
+                sw: switch(self.index1 orelse return null) {
+# for $i in entities {
+                    $i + 1 => {
+# if entities[$i].type == single {
+                        inline for(std.meta.fields(@TypeOf(self.scene.entity$i))) |field| {
+                            if(field.type == T) {
+                                return &@field(self.scene.entity$i, field.name);
+                            }
+                        }
+                        self.index1 = $i + 2;
+                        continue :sw ($i + 2);
+# }
+# if entities[$i].type == group {
+                        inline for(std.meta.fields(@TypeOf(self.scene.entity$i.T))) |field| {
+                            if(field.type == T) {
+                                if(self.index2 == null){
+                                    self.index2 = 0;
+                                } else {
+                                    self.index2.? += 1;
+                                }
+                                if(self.index2.? >= self.scene.entity$i.internal.len){
+                                    self.index2 = null;
+                                    self.index1 = $i + 2;
+                                    continue :sw ($i + 2);
+                                }
+                                return self.scene.entity$i.internal.items(@enumFromInt(std.meta.fieldIndex(self.scene.entity$i.T, field.name)))[self.index2.?];
+                            }
+                        }
+                        self.index1 = $i + 2;
+                        continue :sw ($i + 2);
+# }
+                    },
+# }
+                    else => {
+                        self.index1 = null;
+                        return null;
+                    }
+                }
+            }
+        };
+    }
+};
+
 pub inline fn render(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) void {
     _ = &self;
     _ = &allocator;
@@ -30,20 +204,40 @@ pub inline fn render(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) vo
     const time = deltaTime;
     _ = &time;
 # for $i in entities {
-    {
 # for $j in entities[$i].scripts {
 # set $k = entities[$i].scripts[$j].name {
-        if (@hasDecl(registry.@"$k", "render")) {
-            call(registry.@"$k".render, .{&self.entity$i.script$j, time, allocator, io});
+    if (@hasDecl(registry.@"$k", "render")) {
+# if entities[$i].type == single {
+        call(registry.@"$k".render, .{&self.entity$i.script$j, time, allocator orelse undefined, io orelse undefined});
 # if modules.sync {
-            inline for(std.meta.fields(@TypeOf(self.entity$i.script$j)))|f|{
+        inline for(std.meta.fields(@TypeOf(self.entity$i.script$j)))|f|{
+            if(@hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
+# for $m in entities[$i].scripts {
+                if($j != $m){
+                    if(@hasField(self.entity$i.script$m, f.name)){
+                        if(@hasDecl(@field(self.entity$i.script$m, f.name), "This is a Sync")){
+                            @field(self.entity$i.script$m, f.name) = @field(self.entity$i.script$j, f.name);
+                        }else @compileError("invalid sync mixing on field " ++ f.name);
+                    }
+                }
+# }
+            }
+        }
+# }
+# }
+# if entities[$i].type == group {
+        for(self.entity$i.internal.items(.script$j), 0..) |*script, i|{
+        _ = &i;
+            call(registry.@"$k".render, .{script, time, allocator orelse undefined, io orelse undefined});
+# if modules.sync {
+            inline for(std.meta.fields(@TypeOf(self.entity$i.T.script$j)))|f|{
                 if(@hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
 # for $m in entities[$i].scripts {
                     if($j != $m){
-                        if(@hasField(self.entity$i.script$m, f.name)){
-                            if(@hasDecl(@field(self.entity$i.script$m, f.name), "This is a Sync")){
-                                @field(self.entity$i.script$m, f.name) = @field(self.entity$i.script$k, f.name);
-                            }
+                        if(@hasField(self.entity$i.T.script$m, f.name)){
+                            if(@hasDecl(@field(self.entity$i.T.script$m, f.name), "This is a Sync")){
+                                @field(self.entity$i.internal.items(.script$m)[i], f.name) = @field(script, f.name);
+                            }else @compileError("invalid sync mixing on field " ++ f.name);
                         }
                     }
 # }
@@ -52,8 +246,9 @@ pub inline fn render(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) vo
 # }
         }
 # }
-# }
     }
+# }
+# }
 # }
 }
 pub inline fn update(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) void {
@@ -68,20 +263,40 @@ pub inline fn update(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) vo
     }
     const time = deltaTime;
 # for $i in entities {
-    {
 # for $j in entities[$i].scripts {
 # set $k = entities[$i].scripts[$j].name {
-        if (@hasDecl(registry.@"$k", "update")) {
-            call(registry.@"$k".update, .{&self.entity$i.script$j, time, allocator, io});
+    if (@hasDecl(registry.@"$k", "update")) {
+# if entities[$i].type == single {
+        call(registry.@"$k".update, .{&self.entity$i.script$j, time, allocator orelse undefined, io orelse undefined});
 # if modules.sync {
-            inline for(std.meta.fields(@TypeOf(self.entity$i.script$j)))|f|{
+        inline for(std.meta.fields(@TypeOf(self.entity$i.script$j)))|f|{
+            if(@hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
+# for $m in entities[$i].scripts {
+                if($j != $m){
+                    if(@hasField(self.entity$i.script$m, f.name)){
+                        if(@hasDecl(@field(self.entity$i.script$m, f.name), "This is a Sync")){
+                            @field(self.entity$i.script$m, f.name) = @field(self.entity$i.script$j, f.name);
+                        }else @compileError("invalid sync mixing on field " ++ f.name);
+                    }
+                }
+# }
+            }
+        }
+# }
+# }
+# if entities[$i].type == group {
+        for(self.entity$i.internal.items(.script$j), 0..) |*script, i|{
+        _ = &i;
+            call(registry.@"$k".update, .{script, time, allocator orelse undefined, io orelse undefined});
+# if modules.sync {
+            inline for(std.meta.fields(@TypeOf(self.entity$i.T.script$j)))|f|{
                 if(@hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
 # for $m in entities[$i].scripts {
                     if($j != $m){
-                        if(@hasField(self.entity$i.script$m, f.name)){
-                            if(@hasDecl(@field(self.entity$i.script$m, f.name), "This is a Sync")){
-                                @field(self.entity$i.script$m, f.name) = @field(self.entity$i.script$k, f.name);
-                            }
+                        if(@hasField(self.entity$i.T.script$m, f.name)){
+                            if(@hasDecl(@field(self.entity$i.T.script$m, f.name), "This is a Sync")){
+                                @field(self.entity$i.internal.items(.script$m)[i], f.name) = @field(script, f.name);
+                            }else @compileError("invalid sync mixing on field " ++ f.name);
                         }
                     }
 # }
@@ -90,8 +305,9 @@ pub inline fn update(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) vo
 # }
         }
 # }
-# }
     }
+# }
+# }
 # }
 }
 pub inline fn fixedUpdate(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) void {
@@ -100,20 +316,40 @@ pub inline fn fixedUpdate(self: *This, allocator: ?std.mem.Allocator, io: ?std.I
     _ = &io;
     const time = 1 / FPS;
 # for $i in entities {
-    {
 # for $j in entities[$i].scripts {
 # set $k = entities[$i].scripts[$j].name {
-        if (@hasDecl(registry.@"$k", "fixedUpdate")) {
-            call(registry.@"$k".fixedUpdate, .{&self.entity$i.script$j, time, allocator, io});
+    if (@hasDecl(registry.@"$k", "fixedUpdate")) {
+# if entities[$i].type == single {
+        call(registry.@"$k".fixedUpdate, .{&self.entity$i.script$j, time, allocator orelse undefined, io orelse undefined});
 # if modules.sync {
-            inline for(std.meta.fields(@TypeOf(self.entity$i.script$j)))|f|{
+        inline for(std.meta.fields(@TypeOf(self.entity$i.script$j)))|f|{
+            if(@hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
+# for $m in entities[$i].scripts {
+                if($j != $m){
+                    if(@hasField(self.entity$i.script$m, f.name)){
+                        if(@hasDecl(@field(self.entity$i.script$m, f.name), "This is a Sync")){
+                            @field(self.entity$i.script$m, f.name) = @field(self.entity$i.script$j, f.name);
+                        }else @compileError("invalid sync mixing on field " ++ f.name);
+                    }
+                }
+# }
+            }
+        }
+# }
+# }
+# if entities[$i].type == group {
+        for(self.entity$i.internal.items(.script$j), 0..) |*script, i|{
+        _ = &i;
+            call(registry.@"$k".fixedUpdate, .{script, time, allocator orelse undefined, io orelse undefined});
+# if modules.sync {
+            inline for(std.meta.fields(@TypeOf(self.entity$i.T.script$j)))|f|{
                 if(@hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
 # for $m in entities[$i].scripts {
                     if($j != $m){
-                        if(@hasField(self.entity$i.script$m, f.name)){
-                            if(@hasDecl(@field(self.entity$i.script$m, f.name), "This is a Sync")){
-                                @field(self.entity$i.script$m, f.name) = @field(self.entity$i.script$k, f.name);
-                            }
+                        if(@hasField(self.entity$i.T.script$m, f.name)){
+                            if(@hasDecl(@field(self.entity$i.T.script$m, f.name), "This is a Sync")){
+                                @field(self.entity$i.internal.items(.script$m)[i], f.name) = @field(script, f.name);
+                            }else @compileError("invalid sync mixing on field " ++ f.name);
                         }
                     }
 # }
@@ -122,8 +358,9 @@ pub inline fn fixedUpdate(self: *This, allocator: ?std.mem.Allocator, io: ?std.I
 # }
         }
 # }
-# }
     }
+# }
+# }
 # }
 }
 pub inline fn init(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) void {
@@ -131,20 +368,40 @@ pub inline fn init(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) void
     _ = &allocator;
     _ = &io;
 # for $i in entities {
-    {
 # for $j in entities[$i].scripts {
 # set $k = entities[$i].scripts[$j].name {
-        if (@hasDecl(registry.@"$k", "init")) {
-            call(registry.@"$k".init, .{&self.entity$i.script$j, allocator, io});
+    if (@hasDecl(registry.@"$k", "init")) {
+# if entities[$i].type == single {
+        call(registry.@"$k".init, .{&self.entity$i.script$j, allocator orelse undefined, io orelse undefined});
 # if modules.sync {
-            inline for(std.meta.fields(@TypeOf(self.entity$i.script$j)))|f|{
+        inline for(std.meta.fields(@TypeOf(self.entity$i.script$j)))|f|{
+            if(@hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
+# for $m in entities[$i].scripts {
+                if($j != $m){
+                    if(@hasField(self.entity$i.script$m, f.name)){
+                        if(@hasDecl(@field(self.entity$i.script$m, f.name), "This is a Sync")){
+                            @field(self.entity$i.script$m, f.name) = @field(self.entity$i.script$j, f.name);
+                        }else @compileError("invalid sync mixing on field " ++ f.name);
+                    }
+                }
+# }
+            }
+        }
+# }
+# }
+# if entities[$i].type == group {
+        for(self.entity$i.internal.items(.script$j), 0..) |*script, i|{
+        _ = &i;
+            call(registry.@"$k".init, .{script, allocator orelse undefined, io orelse undefined});
+# if modules.sync {
+            inline for(std.meta.fields(@TypeOf(self.entity$i.T.script$j)))|f|{
                 if(@hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
 # for $m in entities[$i].scripts {
                     if($j != $m){
-                        if(@hasField(self.entity$i.script$m, f.name)){
-                            if(@hasDecl(@field(self.entity$i.script$m, f.name), "This is a Sync")){
-                                @field(self.entity$i.script$m, f.name) = @field(self.entity$i.script$k, f.name);
-                            }
+                        if(@hasField(self.entity$i.T.script$m, f.name)){
+                            if(@hasDecl(@field(self.entity$i.T.script$m, f.name), "This is a Sync")){
+                                @field(self.entity$i.internal.items(.script$m)[i], f.name) = @field(script, f.name);
+                            }else @compileError("invalid sync mixing on field " ++ f.name);
                         }
                     }
 # }
@@ -153,8 +410,9 @@ pub inline fn init(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) void
 # }
         }
 # }
-# }
     }
+# }
+# }
 # }
 }
 pub inline fn deinit(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) void {
@@ -162,20 +420,40 @@ pub inline fn deinit(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) vo
     _ = &allocator;
     _ = &io;
 # for $i in entities {
-    {
 # for $j in entities[$i].scripts {
 # set $k = entities[$i].scripts[$j].name {
-        if (@hasDecl(registry.@"$k", "deinit")) {
-            call(registry.@"$k".deinit, .{&self.entity$i.script$j, allocator, io});
+    if (@hasDecl(registry.@"$k", "deinit")) {
+# if entities[$i].type == single {
+        call(registry.@"$k".deinit, .{&self.entity$i.script$j, allocator orelse undefined, io orelse undefined});
 # if modules.sync {
-            inline for(std.meta.fields(@TypeOf(self.entity$i.script$j)))|f|{
+        inline for(std.meta.fields(@TypeOf(self.entity$i.script$j)))|f|{
+            if(@hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
+# for $m in entities[$i].scripts {
+                if($j != $m){
+                    if(@hasField(self.entity$i.script$m, f.name)){
+                        if(@hasDecl(@field(self.entity$i.script$m, f.name), "This is a Sync")){
+                            @field(self.entity$i.script$m, f.name) = @field(self.entity$i.script$j, f.name);
+                        }else @compileError("invalid sync mixing on field " ++ f.name);
+                    }
+                }
+# }
+            }
+        }
+# }
+# }
+# if entities[$i].type == group {
+        for(self.entity$i.internal.items(.script$j), 0..) |*script, i|{
+        _ = &i;
+            call(registry.@"$k".deinit, .{script, allocator orelse undefined, io orelse undefined});
+# if modules.sync {
+            inline for(std.meta.fields(@TypeOf(self.entity$i.T.script$j)))|f|{
                 if(@hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
 # for $m in entities[$i].scripts {
                     if($j != $m){
-                        if(@hasField(self.entity$i.script$m, f.name)){
-                            if(@hasDecl(@field(self.entity$i.script$m, f.name), "This is a Sync")){
-                                @field(self.entity$i.script$m, f.name) = @field(self.entity$i.script$k, f.name);
-                            }
+                        if(@hasField(self.entity$i.T.script$m, f.name)){
+                            if(@hasDecl(@field(self.entity$i.T.script$m, f.name), "This is a Sync")){
+                                @field(self.entity$i.internal.items(.script$m)[i], f.name) = @field(script, f.name);
+                            }else @compileError("invalid sync mixing on field " ++ f.name);
                         }
                     }
 # }
@@ -184,8 +462,9 @@ pub inline fn deinit(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) vo
 # }
         }
 # }
-# }
     }
+# }
+# }
 # }
 }
 inline fn call(comptime func: anytype, args: anytype) @typeInfo(@TypeOf(func)).@"fn".return_type.? {
@@ -218,5 +497,5 @@ inline fn call(comptime func: anytype, args: anytype) @typeInfo(@TypeOf(func)).@
         if (!found) @compileError("no argument of type " ++ @typeName(T) ++ " provided");
     }
 
-    return @call(.always_inline, func, resolved);
+    return @call(.auto, func, resolved);
 }

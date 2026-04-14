@@ -6,8 +6,9 @@ pub fn build(b: *std.Build) void {
         .entities = &[_]BiAxis.Entity{
             .{
                 .scripts = &[_]BiAxis.Script{
-                    BiAxis.getScript("src/script.zig", BiAxis.ParamList({}), b.allocator),
+                    BiAxis.getScript("src/script.zig", .{}, b.allocator),
                 },
+                .type = .group,
             },
             .{
                 .scripts = &[_]BiAxis.Script{

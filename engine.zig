@@ -19,24 +19,6 @@ pub fn getRegistry(allocator: std.mem.Allocator, files: []const []const u8) []co
     return w.toOwnedSlice() catch unreachable;
 }
 
-pub fn Param(T: type, name: [:0]const u8, value: T) type {
-    return @Struct(.auto, null, &.{name}, @ptrCast((&.{T}).ptr), @ptrCast((&.{.{ .default_value_ptr = &value }}).ptr));
-}
-
-pub fn ParamList(params: anytype) type {
-    if (@TypeOf(params) == void) return ParamList(.{});
-    var names: [][]const u8 = &.{};
-    var types: []type = &.{};
-    var attrs: []std.builtin.Type.StructField.Attributes = &.{};
-    inline for (std.meta.fields(@TypeOf(params))) |P| {
-        names = names ++ P.name;
-        types = types ++ P.type;
-        attrs = attrs ++ &.{.{ .default_value_ptr = P.default_value_ptr }};
-    }
-
-    return @Struct(.auto, null, names, @ptrCast(types.ptr), @ptrCast(attrs.ptr));
-}
-
 pub const Scene = struct {
     entities: []const Entity = &[_]Entity{},
 };
@@ -180,6 +162,13 @@ fn evalPath(
         }
 
         @panic("unknown scripts leaf");
+    }
+    if (std.mem.eql(u8, next, "type")) {
+        if (!std.mem.eql(u8, it.next() orelse @panic("expected comparison check after type"), "==")) @panic("expected single or group");
+        const field = it.next() orelse @panic("expected single or group");
+        if (std.mem.eql(u8, field, "single")) return .{ .index = @intFromBool(scene.entities[entity_idx].type == .single) };
+        if (std.mem.eql(u8, field, "group")) return .{ .index = @intFromBool(scene.entities[entity_idx].type == .group) };
+        @panic("expected single or group");
     }
 
     @panic("unknown entities field");
