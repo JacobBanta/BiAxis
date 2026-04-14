@@ -1,3 +1,4 @@
 .zig-cache
 zig-out
 registry.zig
+zig-pkg

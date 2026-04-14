@@ -12,7 +12,7 @@ pub fn main() anyerror!void {
     rl.setWindowState(.{ .window_resizable = true });
 
     var Scene = editor{};
-    Scene.init();
+    Scene.init(null, null);
 
     rl.setTargetFPS(60);
 
@@ -22,7 +22,7 @@ pub fn main() anyerror!void {
 
         rl.clearBackground(rl.Color.white);
         rl.drawFPS(0, 0);
-        Scene.update();
-        Scene.render();
+        Scene.update(null, null);
+        Scene.render(null, null);
     }
 }

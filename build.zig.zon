@@ -1,9 +1,9 @@
 .{
     .name = .BiAxis,
-    .version = "0.1.1",
+    .version = "0.2.0",
     .fingerprint = 0x6309e92008745b3f,
 
-    .minimum_zig_version = "0.15.1",
+    .minimum_zig_version = "0.16.0-dev.3146+0606af509",
 
     .dependencies = .{
         .zon_tool = .{

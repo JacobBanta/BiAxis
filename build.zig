@@ -4,9 +4,12 @@ pub const BiAxis = @import("engine.zig");
 pub fn build(b: *std.Build) void {
     const s = BiAxis.Scene{
         .entities = &[_]BiAxis.Entity{
-            .{ .scripts = &[_]BiAxis.Script{
-                BiAxis.getScript("src/script.zig", BiAxis.ParamList({}), b.allocator),
-            } },
+            .{
+                .scripts = &[_]BiAxis.Script{
+                    BiAxis.getScript("src/script.zig", .{}, b.allocator),
+                },
+                .type = .group,
+            },
             .{
                 .scripts = &[_]BiAxis.Script{
                     BiAxis.getScript("src/script.zig", .{ .position = .{ .y = 450, .x = 0 }, .size = .{ .x = 800, .y = 1 } }, b.allocator),
