@@ -68,8 +68,9 @@ pub fn addModule(b: *std.Build, scene: Scene, externalImports: []const std.Build
     var imports = std.ArrayList(std.Build.Module.Import).empty;
     imports.appendSlice(b.allocator, externalImports) catch unreachable;
     var registry = b.addWriteFile(b.pathFromRoot("registry.zig"), getRegistry(b.allocator, files.items));
+    const registry_mod = b.createModule(.{ .target = opts.target, .optimize = opts.optimize, .root_source_file = b.path("registry.zig"), .imports = imports.items });
     imports.append(b.allocator, .{
-        .module = b.createModule(.{ .target = opts.target, .optimize = opts.optimize, .root_source_file = b.path("registry.zig"), .imports = imports.items }),
+        .module = registry_mod,
         .name = "registry",
     }) catch unreachable;
     const writeFiles = b.addWriteFiles();
@@ -82,6 +83,7 @@ pub fn addModule(b: *std.Build, scene: Scene, externalImports: []const std.Build
         }
     }
     const mod = b.createModule(.{ .root_source_file = sceneWriteFile, .imports = imports.items, .optimize = opts.optimize, .target = opts.target });
+    registry_mod.addImport(name, mod);
     writeFiles.step.dependOn(&registry.step);
     return .{ .module = mod, .step = &writeFiles.step };
 }
