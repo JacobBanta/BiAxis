@@ -25,16 +25,16 @@ pub const Scene = struct {
 
 pub const Entity = struct {
     type: enum { single, group } = .single,
-    scripts: []const Script = &[_]Script{},
+    components: []const Component = &[_]Component{},
 };
 
-pub const Script = union(enum) {
-    script: struct {
+pub const Component = union(enum) {
+    component: struct {
         path: []const u8,
         data: []const u8, //ZON data
     },
 };
-pub fn getScript(path: []const u8, data: anytype, allocator: std.mem.Allocator) Script {
+pub fn getComponent(path: []const u8, data: anytype, allocator: std.mem.Allocator) Component {
     var w = std.Io.Writer.Allocating.init(allocator);
     const writer = &w.writer;
     switch (@TypeOf(data)) {
@@ -45,7 +45,7 @@ pub fn getScript(path: []const u8, data: anytype, allocator: std.mem.Allocator) 
             std.zon.stringify.serialize(data, .{}, writer) catch unreachable;
         },
     }
-    return .{ .script = .{ .path = path, .data = w.toOwnedSlice() catch unreachable } };
+    return .{ .component = .{ .path = path, .data = w.toOwnedSlice() catch unreachable } };
 }
 pub fn makeScene(allocator: std.mem.Allocator, scene: Scene) []const u8 {
     const template = @embedFile("template.tp");
@@ -61,8 +61,8 @@ pub fn addModule(b: *std.Build, scene: Scene, externalImports: []const std.Build
     }
     var files = std.ArrayList([]const u8).empty;
     for (scene.entities) |entity| {
-        for (entity.scripts) |script| {
-            files.append(b.allocator, script.script.path) catch unreachable;
+        for (entity.components) |component| {
+            files.append(b.allocator, component.component.path) catch unreachable;
         }
     }
     var imports = std.ArrayList(std.Build.Module.Import).empty;
@@ -76,10 +76,10 @@ pub fn addModule(b: *std.Build, scene: Scene, externalImports: []const std.Build
     const writeFiles = b.addWriteFiles();
     const sceneWriteFile = writeFiles.add(name ++ ".zig", makeScene(b.allocator, scene));
     for (0..scene.entities.len) |entity| {
-        for (0..scene.entities[entity].scripts.len) |script| {
+        for (0..scene.entities[entity].components.len) |component| {
             var file = std.ArrayList(u8).empty;
-            file.print(b.allocator, "entity{d}.script{d}.zon", .{ entity, script }) catch unreachable;
-            _ = writeFiles.add(file.items, scene.entities[entity].scripts[script].script.data);
+            file.print(b.allocator, "entity{d}.component{d}.zon", .{ entity, component }) catch unreachable;
+            _ = writeFiles.add(file.items, scene.entities[entity].components[component].component.data);
         }
     }
     const mod = b.createModule(.{ .root_source_file = sceneWriteFile, .imports = imports.items, .optimize = opts.optimize, .target = opts.target });
@@ -150,20 +150,20 @@ fn evalPath(
 
     const next = it.next() orelse return .{ .index = entity_idx };
 
-    if (std.mem.eql(u8, next, "scripts")) {
-        const sidx_tok = it.next() orelse return .{ .slice_len = scene.entities[entity_idx].scripts.len };
+    if (std.mem.eql(u8, next, "components")) {
+        const sidx_tok = it.next() orelse return .{ .slice_len = scene.entities[entity_idx].components.len };
         const sidx_str = std.mem.trimEnd(u8, sidx_tok, "]");
-        const script_idx = resolveIndex(sidx_str, scope);
+        const component_idx = resolveIndex(sidx_str, scope);
 
-        const leaf = it.next() orelse return .{ .index = script_idx };
+        const leaf = it.next() orelse return .{ .index = component_idx };
         const lname = std.mem.trimEnd(u8, leaf, "]");
-        if (script_idx == std.math.maxInt(usize)) return .{ .string = "" };
+        if (component_idx == std.math.maxInt(usize)) return .{ .string = "" };
 
         if (std.mem.eql(u8, lname, "name")) {
-            return .{ .string = scene.entities[entity_idx].scripts[script_idx].script.path };
+            return .{ .string = scene.entities[entity_idx].components[component_idx].component.path };
         }
 
-        @panic("unknown scripts leaf");
+        @panic("unknown components leaf");
     }
     if (std.mem.eql(u8, next, "type")) {
         if (!std.mem.eql(u8, it.next() orelse @panic("expected comparison check after type"), "==")) @panic("expected single or group");

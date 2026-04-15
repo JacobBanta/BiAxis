@@ -3,7 +3,7 @@ pub const std = @import("std");
 const This = @This();
 pub const registry = @import("registry");
 pub var FPS: f64 = 60;
-var lastFrame: i64 = 0;
+var lastFrame: i96 = 0;
 var deltaTime: f64 = 0;
 var fixedUpdateTime: f64 = 0;
 # if modules.zon_tool {
@@ -20,13 +20,13 @@ var globalID: std.atomic.Value(usize) = .init(1
 # if entities[$i].type == single {
 entity$i: struct {
     id: usize = $i + 1,
-# for $j in entities[$i].scripts {
-# set $k = entities[$i].scripts[$j].name {
+# for $j in entities[$i].components {
+# set $k = entities[$i].components[$j].name {
 # if modules.zon_tool {
-    script$j: registry.@"$k" = zon_tool.getZon(registry.@"$k", @import("entity$i.script$j.zon")),
+    component$j: registry.@"$k" = zon_tool.getZon(registry.@"$k", @import("entity$i.component$j.zon")),
 # }
 # ifn modules.zon_tool {
-    script$j: registry.@"$k" = @import("entity$i.script$j.zon"),
+    component$j: registry.@"$k" = @import("entity$i.component$j.zon"),
 # }
 # }
 # }
@@ -39,13 +39,13 @@ entity$i: struct {
     internal: std.MultiArrayList(T) = .empty,
     pub const T = struct {
         id: usize = 0,
-# for $j in entities[$i].scripts {
-# set $k = entities[$i].scripts[$j].name {
+# for $j in entities[$i].components {
+# set $k = entities[$i].components[$j].name {
 # if modules.zon_tool {
-        script$j: registry.@"$k" = zon_tool.getZon(registry.@"$k", @import("entity$i.script$j.zon")),
+        component$j: registry.@"$k" = zon_tool.getZon(registry.@"$k", @import("entity$i.component$j.zon")),
 # }
 # ifn modules.zon_tool {
-        script$j: registry.@"$k" = @import("entity$i.script$j.zon"),
+        component$j: registry.@"$k" = @import("entity$i.component$j.zon"),
 # }
 # }
 # }
@@ -53,10 +53,10 @@ entity$i: struct {
     pub fn add(self: *@This(), allocator: std.mem.Allocator) !usize {
         const id = globalID.fetchAdd(1, .acq_rel);
         var item: T = .{.id = id};
-# for $j in entities[$i].scripts {
-# set $k = entities[$i].scripts[$j].name {
+# for $j in entities[$i].components {
+# set $k = entities[$i].components[$j].name {
         if (@hasDecl(registry.@"$k", "init")) {
-            call(registry.@"$k".init, .{&item.script$j, allocator});
+            call(registry.@"$k".init, .{&item.component$j, allocator});
         }
 # }
 # }
@@ -66,10 +66,10 @@ entity$i: struct {
     pub fn remove(self: *@This(), allocator: std.mem.Allocator, id: usize) !void {
         for(self.internal.items(.id), 0..)|i, item|{
             if(i == id){
-# for $j in entities[$i].scripts {
-# set $k = entities[$i].scripts[$j].name {
+# for $j in entities[$i].components {
+# set $k = entities[$i].components[$j].name {
                 if (@hasDecl(registry.@"$k", "deinit")) {
-                    call(registry.@"$k".deinit, .{&item.script$j, allocator});
+                    call(registry.@"$k".deinit, .{&item.component$j, allocator});
                 }
 # }
 # }
@@ -253,19 +253,19 @@ pub inline fn render(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) vo
     const time = deltaTime;
     _ = &time;
 # for $i in entities {
-# for $j in entities[$i].scripts {
-# set $k = entities[$i].scripts[$j].name {
+# for $j in entities[$i].components {
+# set $k = entities[$i].components[$j].name {
     if (@hasDecl(registry.@"$k", "render")) {
 # if entities[$i].type == single {
-        call(registry.@"$k".render, .{&self.entity$i.script$j, time, allocator orelse undefined, io orelse undefined, &self.system});
+        call(registry.@"$k".render, .{&self.entity$i.component$j, time, allocator orelse undefined, io orelse undefined, &self.system});
 # if modules.sync {
-        inline for(std.meta.fields(@TypeOf(self.entity$i.script$j)))|f|{
+        inline for(std.meta.fields(@TypeOf(self.entity$i.component$j)))|f|{
             if(@typeInfo(f.type) == .@"struct" and @hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
-# for $m in entities[$i].scripts {
+# for $m in entities[$i].components {
                 if($j != $m){
-                    if(@hasField(self.entity$i.script$m, f.name)){
-                        if(@typeInfo(@field(self.entity$i.script$m, f.name)) == .@"struct" and @hasDecl(@field(self.entity$i.script$m, f.name), "This is a Sync")){
-                            @field(self.entity$i.script$m, f.name) = @field(self.entity$i.script$j, f.name);
+                    if(@hasField(self.entity$i.component$m, f.name)){
+                        if(@typeInfo(@field(self.entity$i.component$m, f.name)) == .@"struct" and @hasDecl(@field(self.entity$i.component$m, f.name), "This is a Sync")){
+                            @field(self.entity$i.component$m, f.name) = @field(self.entity$i.component$j, f.name);
                         }else @compileError("invalid sync mixing on field " ++ f.name);
                     }
                 }
@@ -275,17 +275,17 @@ pub inline fn render(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) vo
 # }
 # }
 # if entities[$i].type == group {
-        for(self.entity$i.internal.items(.script$j), 0..) |*script, i|{
+        for(self.entity$i.internal.items(.component$j), 0..) |*component, i|{
         _ = &i;
-            call(registry.@"$k".render, .{script, time, allocator orelse undefined, io orelse undefined, &self.system});
+            call(registry.@"$k".render, .{component, time, allocator orelse undefined, io orelse undefined, &self.system});
 # if modules.sync {
-            inline for(std.meta.fields(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$j).type))|f|{
+            inline for(std.meta.fields(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$j).type))|f|{
                 if(@typeInfo(f.type) == .@"struct" and @hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
-# for $m in entities[$i].scripts {
+# for $m in entities[$i].components {
                     if($j != $m){
-                        if(@hasField(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$m).type, f.name)){
-                            if(@typeInfo(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$m).type, f.name)) == .@"struct" and @hasDecl(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$m).type, f.name), "This is a Sync")){
-                                @field(self.entity$i.internal.items(.script$m)[i], f.name) = @field(script, f.name);
+                        if(@hasField(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$m).type, f.name)){
+                            if(@typeInfo(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$m).type, f.name)) == .@"struct" and @hasDecl(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$m).type, f.name), "This is a Sync")){
+                                @field(self.entity$i.internal.items(.component$m)[i], f.name) = @field(component, f.name);
                             }else @compileError("invalid sync mixing on field " ++ f.name);
                         }
                     }
@@ -304,32 +304,32 @@ pub inline fn update(self: *This, allocator: ?std.mem.Allocator, io: std.Io) voi
     _ = &self;
     _ = &allocator;
     _ = &io;
-    const rightNow = std.Io.Timestamp.now(io, .real).toMilliseconds();
+    const rightNow = std.Io.Timestamp.now(io, .real).toNanoseconds();
     if(lastFrame == 0) {
         fixedUpdateTime = @floatFromInt(rightNow);
         lastFrame = rightNow;
     }
-    deltaTime = @as(f64, @floatFromInt(rightNow - lastFrame)) / 1000;
+    deltaTime = @as(f64, @floatFromInt(rightNow - lastFrame)) / std.time.ns_per_s;
     lastFrame = rightNow;
-    while (fixedUpdateTime < @as(f64, @floatFromInt(rightNow)) + (1000 / FPS)) {
-        fixedUpdateTime += 1000 / FPS;
+    while (fixedUpdateTime < @as(f64, @floatFromInt(rightNow)) + (std.time.ns_per_s / FPS)) {
+        fixedUpdateTime += std.time.ns_per_s / FPS;
         self.fixedUpdate(allocator, io);
     }
     const time = deltaTime;
 # for $i in entities {
-# for $j in entities[$i].scripts {
-# set $k = entities[$i].scripts[$j].name {
+# for $j in entities[$i].components {
+# set $k = entities[$i].components[$j].name {
     if (@hasDecl(registry.@"$k", "update")) {
 # if entities[$i].type == single {
-        call(registry.@"$k".update, .{&self.entity$i.script$j, time, allocator orelse undefined, io, &self.system});
+        call(registry.@"$k".update, .{&self.entity$i.component$j, time, allocator orelse undefined, io, &self.system});
 # if modules.sync {
-        inline for(std.meta.fields(@TypeOf(self.entity$i.script$j)))|f|{
+        inline for(std.meta.fields(@TypeOf(self.entity$i.component$j)))|f|{
             if(@typeInfo(f.type) == .@"struct" and @hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
-# for $m in entities[$i].scripts {
+# for $m in entities[$i].components {
                 if($j != $m){
-                    if(@hasField(self.entity$i.script$m, f.name)){
-                        if(@typeInfo(@field(self.entity$i.script$m, f.name)) == .@"struct" and @hasDecl(@field(self.entity$i.script$m, f.name), "This is a Sync")){
-                            @field(self.entity$i.script$m, f.name) = @field(self.entity$i.script$j, f.name);
+                    if(@hasField(self.entity$i.component$m, f.name)){
+                        if(@typeInfo(@field(self.entity$i.component$m, f.name)) == .@"struct" and @hasDecl(@field(self.entity$i.component$m, f.name), "This is a Sync")){
+                            @field(self.entity$i.component$m, f.name) = @field(self.entity$i.component$j, f.name);
                         }else @compileError("invalid sync mixing on field " ++ f.name);
                     }
                 }
@@ -339,17 +339,17 @@ pub inline fn update(self: *This, allocator: ?std.mem.Allocator, io: std.Io) voi
 # }
 # }
 # if entities[$i].type == group {
-        for(self.entity$i.internal.items(.script$j), 0..) |*script, i|{
+        for(self.entity$i.internal.items(.component$j), 0..) |*component, i|{
         _ = &i;
-            call(registry.@"$k".update, .{script, time, allocator orelse undefined, io, &self.system});
+            call(registry.@"$k".update, .{component, time, allocator orelse undefined, io, &self.system});
 # if modules.sync {
-            inline for(std.meta.fields(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$j).type))|f|{
+            inline for(std.meta.fields(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$j).type))|f|{
                 if(@typeInfo(f.type) == .@"struct" and @hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
-# for $m in entities[$i].scripts {
+# for $m in entities[$i].components {
                     if($j != $m){
-                        if(@hasField(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$m).type, f.name)){
-                            if(@typeInfo(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$m).type, f.name)) == .@"struct" and @hasDecl(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$m).type, f.name), "This is a Sync")){
-                                @field(self.entity$i.internal.items(.script$m)[i], f.name) = @field(script, f.name);
+                        if(@hasField(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$m).type, f.name)){
+                            if(@typeInfo(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$m).type, f.name)) == .@"struct" and @hasDecl(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$m).type, f.name), "This is a Sync")){
+                                @field(self.entity$i.internal.items(.component$m)[i], f.name) = @field(component, f.name);
                             }else @compileError("invalid sync mixing on field " ++ f.name);
                         }
                     }
@@ -370,19 +370,19 @@ pub inline fn fixedUpdate(self: *This, allocator: ?std.mem.Allocator, io: ?std.I
     _ = &io;
     const time = 1 / FPS;
 # for $i in entities {
-# for $j in entities[$i].scripts {
-# set $k = entities[$i].scripts[$j].name {
+# for $j in entities[$i].components {
+# set $k = entities[$i].components[$j].name {
     if (@hasDecl(registry.@"$k", "fixedUpdate")) {
 # if entities[$i].type == single {
-        call(registry.@"$k".fixedUpdate, .{&self.entity$i.script$j, time, allocator orelse undefined, io orelse undefined, &self.system});
+        call(registry.@"$k".fixedUpdate, .{&self.entity$i.component$j, time, allocator orelse undefined, io orelse undefined, &self.system});
 # if modules.sync {
-        inline for(std.meta.fields(@TypeOf(self.entity$i.script$j)))|f|{
+        inline for(std.meta.fields(@TypeOf(self.entity$i.component$j)))|f|{
             if(@typeInfo(f.type) == .@"struct" and @hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
-# for $m in entities[$i].scripts {
+# for $m in entities[$i].components {
                 if($j != $m){
-                    if(@hasField(self.entity$i.script$m, f.name)){
-                        if(@typeInfo(@field(self.entity$i.script$m, f.name)) == .@"struct" and @hasDecl(@field(self.entity$i.script$m, f.name), "This is a Sync")){
-                            @field(self.entity$i.script$m, f.name) = @field(self.entity$i.script$j, f.name);
+                    if(@hasField(self.entity$i.component$m, f.name)){
+                        if(@typeInfo(@field(self.entity$i.component$m, f.name)) == .@"struct" and @hasDecl(@field(self.entity$i.component$m, f.name), "This is a Sync")){
+                            @field(self.entity$i.component$m, f.name) = @field(self.entity$i.component$j, f.name);
                         }else @compileError("invalid sync mixing on field " ++ f.name);
                     }
                 }
@@ -392,17 +392,17 @@ pub inline fn fixedUpdate(self: *This, allocator: ?std.mem.Allocator, io: ?std.I
 # }
 # }
 # if entities[$i].type == group {
-        for(self.entity$i.internal.items(.script$j), 0..) |*script, i|{
+        for(self.entity$i.internal.items(.component$j), 0..) |*component, i|{
         _ = &i;
-            call(registry.@"$k".fixedUpdate, .{script, time, allocator orelse undefined, io orelse undefined, &self.system});
+            call(registry.@"$k".fixedUpdate, .{component, time, allocator orelse undefined, io orelse undefined, &self.system});
 # if modules.sync {
-            inline for(std.meta.fields(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$j).type))|f|{
+            inline for(std.meta.fields(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$j).type))|f|{
                 if(@typeInfo(f.type) == .@"struct" and @hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
-# for $m in entities[$i].scripts {
+# for $m in entities[$i].components {
                     if($j != $m){
-                        if(@hasField(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$m).type, f.name)){
-                            if(@typeInfo(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$m).type, f.name)) == .@"struct" and @hasDecl(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$m).type, f.name), "This is a Sync")){
-                                @field(self.entity$i.internal.items(.script$m)[i], f.name) = @field(script, f.name);
+                        if(@hasField(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$m).type, f.name)){
+                            if(@typeInfo(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$m).type, f.name)) == .@"struct" and @hasDecl(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$m).type, f.name), "This is a Sync")){
+                                @field(self.entity$i.internal.items(.component$m)[i], f.name) = @field(component, f.name);
                             }else @compileError("invalid sync mixing on field " ++ f.name);
                         }
                     }
@@ -422,19 +422,19 @@ pub inline fn init(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) void
     _ = &allocator;
     _ = &io;
 # for $i in entities {
-# for $j in entities[$i].scripts {
-# set $k = entities[$i].scripts[$j].name {
+# for $j in entities[$i].components {
+# set $k = entities[$i].components[$j].name {
     if (@hasDecl(registry.@"$k", "init")) {
 # if entities[$i].type == single {
-        call(registry.@"$k".init, .{&self.entity$i.script$j, allocator orelse undefined, io orelse undefined, &self.system});
+        call(registry.@"$k".init, .{&self.entity$i.component$j, allocator orelse undefined, io orelse undefined, &self.system});
 # if modules.sync {
-        inline for(std.meta.fields(@TypeOf(self.entity$i.script$j)))|f|{
+        inline for(std.meta.fields(@TypeOf(self.entity$i.component$j)))|f|{
             if(@typeInfo(f.type) == .@"struct" and @hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
-# for $m in entities[$i].scripts {
+# for $m in entities[$i].components {
                 if($j != $m){
-                    if(@hasField(self.entity$i.script$m, f.name)){
-                        if(@typeInfo(@field(self.entity$i.script$m, f.name)) == .@"struct" and @hasDecl(@field(self.entity$i.script$m, f.name), "This is a Sync")){
-                            @field(self.entity$i.script$m, f.name) = @field(self.entity$i.script$j, f.name);
+                    if(@hasField(self.entity$i.component$m, f.name)){
+                        if(@typeInfo(@field(self.entity$i.component$m, f.name)) == .@"struct" and @hasDecl(@field(self.entity$i.component$m, f.name), "This is a Sync")){
+                            @field(self.entity$i.component$m, f.name) = @field(self.entity$i.component$j, f.name);
                         }else @compileError("invalid sync mixing on field " ++ f.name);
                     }
                 }
@@ -444,17 +444,17 @@ pub inline fn init(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) void
 # }
 # }
 # if entities[$i].type == group {
-        for(self.entity$i.internal.items(.script$j), 0..) |*script, i|{
+        for(self.entity$i.internal.items(.component$j), 0..) |*component, i|{
         _ = &i;
-            call(registry.@"$k".init, .{script, allocator orelse undefined, io orelse undefined, &self.system});
+            call(registry.@"$k".init, .{component, allocator orelse undefined, io orelse undefined, &self.system});
 # if modules.sync {
-            inline for(std.meta.fields(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$j).type))|f|{
+            inline for(std.meta.fields(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$j).type))|f|{
                 if(@typeInfo(f.type) == .@"struct" and @hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
-# for $m in entities[$i].scripts {
+# for $m in entities[$i].components {
                     if($j != $m){
-                        if(@hasField(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$m).type, f.name)){
-                            if(@typeInfo(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$m).type, f.name)) == .@"struct" and @hasDecl(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$m).type, f.name), "This is a Sync")){
-                                @field(self.entity$i.internal.items(.script$m)[i], f.name) = @field(script, f.name);
+                        if(@hasField(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$m).type, f.name)){
+                            if(@typeInfo(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$m).type, f.name)) == .@"struct" and @hasDecl(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$m).type, f.name), "This is a Sync")){
+                                @field(self.entity$i.internal.items(.component$m)[i], f.name) = @field(component, f.name);
                             }else @compileError("invalid sync mixing on field " ++ f.name);
                         }
                     }
@@ -474,19 +474,19 @@ pub inline fn deinit(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) vo
     _ = &allocator;
     _ = &io;
 # for $i in entities {
-# for $j in entities[$i].scripts {
-# set $k = entities[$i].scripts[$j].name {
+# for $j in entities[$i].components {
+# set $k = entities[$i].components[$j].name {
     if (@hasDecl(registry.@"$k", "deinit")) {
 # if entities[$i].type == single {
-        call(registry.@"$k".deinit, .{&self.entity$i.script$j, allocator orelse undefined, io orelse undefined, &self.system});
+        call(registry.@"$k".deinit, .{&self.entity$i.component$j, allocator orelse undefined, io orelse undefined, &self.system});
 # if modules.sync {
-        inline for(std.meta.fields(@TypeOf(self.entity$i.script$j)))|f|{
+        inline for(std.meta.fields(@TypeOf(self.entity$i.component$j)))|f|{
             if(@typeInfo(f.type) == .@"struct" and @hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
-# for $m in entities[$i].scripts {
+# for $m in entities[$i].components {
                 if($j != $m){
-                    if(@hasField(self.entity$i.script$m, f.name)){
-                        if(@typeInfo(@field(self.entity$i.script$m, f.name)) == .@"struct" and @hasDecl(@field(self.entity$i.script$m, f.name), "This is a Sync")){
-                            @field(self.entity$i.script$m, f.name) = @field(self.entity$i.script$j, f.name);
+                    if(@hasField(self.entity$i.component$m, f.name)){
+                        if(@typeInfo(@field(self.entity$i.component$m, f.name)) == .@"struct" and @hasDecl(@field(self.entity$i.component$m, f.name), "This is a Sync")){
+                            @field(self.entity$i.component$m, f.name) = @field(self.entity$i.component$j, f.name);
                         }else @compileError("invalid sync mixing on field " ++ f.name);
                     }
                 }
@@ -496,17 +496,17 @@ pub inline fn deinit(self: *This, allocator: ?std.mem.Allocator, io: ?std.Io) vo
 # }
 # }
 # if entities[$i].type == group {
-        for(self.entity$i.internal.items(.script$j), 0..) |*script, i|{
+        for(self.entity$i.internal.items(.component$j), 0..) |*component, i|{
         _ = &i;
-            call(registry.@"$k".deinit, .{script, allocator orelse undefined, io orelse undefined, &self.system});
+            call(registry.@"$k".deinit, .{component, allocator orelse undefined, io orelse undefined, &self.system});
 # if modules.sync {
-            inline for(std.meta.fields(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$j).type))|f|{
+            inline for(std.meta.fields(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$j).type))|f|{
                 if(@typeInfo(f.type) == .@"struct" and @hasDecl(f.type, "This is a Sync") and (f.type.w or f.type.m)){
-# for $m in entities[$i].scripts {
+# for $m in entities[$i].components {
                     if($j != $m){
-                        if(@hasField(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$m).type, f.name)){
-                            if(@typeInfo(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$m).type, f.name)) == .@"struct" and @hasDecl(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .script$m).type, f.name), "This is a Sync")){
-                                @field(self.entity$i.internal.items(.script$m)[i], f.name) = @field(script, f.name);
+                        if(@hasField(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$m).type, f.name)){
+                            if(@typeInfo(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$m).type, f.name)) == .@"struct" and @hasDecl(@field(std.meta.fieldInfo(@TypeOf(self.entity$i).T, .component$m).type, f.name), "This is a Sync")){
+                                @field(self.entity$i.internal.items(.component$m)[i], f.name) = @field(component, f.name);
                             }else @compileError("invalid sync mixing on field " ++ f.name);
                         }
                     }
