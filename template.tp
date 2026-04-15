@@ -127,6 +127,35 @@ pub const System = struct {
             },
         }
     }
+    pub fn addGroupMember(self: *const System, id: usize, allocator: std.mem.Allocator) !usize {
+        const this: *const This = @fieldParentPtr("system", self);
+        switch(id) {
+# for $i in entities {
+            $i + 1 => {
+# if entities[$i].type == single {
+                return error.IdNotGroup;
+# }
+# if entities[$i].type == group {
+                return this.entity$i.add(allocator);
+# }
+            },
+# }
+            else => {
+                return error.InvalidId;
+            },
+        }
+    }
+    pub fn removeGroupMember(self: *const System, id: usize, allocator: std.mem.Allocator) !void {
+        const this: *const This = @fieldParentPtr("system", self);
+# for $i in entities {
+# if entities[$i].type == group {
+        if(this.entity$i.remove(allocator, id)) {
+            return;
+        }
+# }
+# }
+        return error.IdNotFound;
+    }
     pub fn getComponents(self: *const System, component: type) ComponentIterator(component) {
         return .{.scene = @fieldParentPtr("system", self), .index1 = 0, .index2 = null};
     }
