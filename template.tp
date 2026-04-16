@@ -129,6 +129,8 @@ pub const System = struct {
     }
     pub fn addGroupMember(self: *const System, id: usize, allocator: std.mem.Allocator) !usize {
         const this: *This = @alignCast(@constCast(@fieldParentPtr("system", self)));
+		_ = &this;
+		_ = &allocator;
         switch(id) {
 # for $i in entities {
             $i + 1 => {
@@ -147,6 +149,9 @@ pub const System = struct {
     }
     pub fn removeGroupMember(self: *const System, id: usize, allocator: std.mem.Allocator) !void {
         const this: *This = @alignCast(@constCast(@fieldParentPtr("system", self)));
+		_ = &this;
+		_ = &id;
+		_ = &allocator;
 # for $i in entities {
 # if entities[$i].type == group {
         if(this.entity$i.remove(allocator, id)) |_| {
